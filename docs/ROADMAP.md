@@ -10,7 +10,8 @@ Novel Pipeline - Write Engine 开发路线图。
 - [x] database/schema.sql — 完整 SQLite 表结构（含 volume_plans/chapter_plans/title_history）
 - [x] scripts/init_db.py — 数据库初始化
 - [x] scripts/check_schema.py — Schema 完整性检查
-- [x] docs/skills/long_novel_writing_SKILL.md — 长篇写作行为规范（通用版，无具体小说绑定）
+- [x] scripts/import_outline_skeleton.py — 标题骨架 JSON 导入（校验 + 写入）
+- [x] docs/skills/long_novel_writing_SKILL.md — 长篇写作行为规范（通用版）
 - [x] docs/ROADMAP.md — 本文件
 
 **已完成（待用户验证）：**
