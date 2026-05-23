@@ -30,21 +30,25 @@ pytest tests/ -v
 
 ---
 
-## Phase 2: 标题骨架与卷级连续性
+## Phase 2: 标题骨架与卷级连续性 ⚠️ (部分完成)
 
 **已完成：**
 - [x] import_outline_skeleton.py — JSON 标题骨架导入
-- [x] volume_plans / chapter_plans 基础写入
-- [x] chapter_goal / conflict_point / ending_hook_direction 校验
-- [x] pre 阶段从 volume_plans / chapter_plans 读取标题骨架
+- [x] volume_plans / chapter_plans 基础写入与校验
+- [x] pre 阶段读取标题骨架（volume_plans + chapter_plans）
 - [x] TASK CARD 展示骨架指引（章节目标/冲突点/结尾钩子）
 - [x] volume_post — 卷级统计/伏笔/角色/下一卷承接点
 - [x] ingest 后自动更新 chapter_plans 状态（planned → written）+ final_title 同步
 - [x] 卷序强制检查（跨卷连续性验证）
-- [x] 端到端测试：pre 骨架读取 + ingest 状态更新 + 卷序检查
+- [x] Demo outline_skeleton.json（25 章）
 
 **待完成：**
-- [ ] 更多卷级和流水线集成测试
+- [ ] chapter_brief 输出增强
+- [ ] pre 读取上一章 actual chapter_brief
+- [ ] volume_post 输出结构化 volume_report.json
+- [ ] chapter_plans 状态更新细化
+- [ ] title_history 自动记录标题变化
+- [ ] 端到端 demo 测试增强
 
 ---
 

@@ -88,11 +88,14 @@ novel-pipeline-write-engine/
 
 ---
 
-## 进行中（Phase 2 重点）
+## Phase 2 剩余
 
-- [ ] pre 阶段从 volume_plans / chapter_plans 读取标题骨架
-- [ ] volume_post — 卷级总结与承接
 - [ ] chapter_brief 输出增强
+- [ ] pre 读取上一章 actual chapter_brief
+- [ ] volume_post 输出结构化 volume_report.json
+- [ ] chapter_plans 状态更新细化
+- [ ] title_history 自动记录标题变化
+- [ ] 端到端 demo 测试增强
 
 ---
 
