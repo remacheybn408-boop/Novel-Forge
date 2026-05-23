@@ -120,12 +120,13 @@ SQLite 记住 → 门禁防偷懒 → 摘要防迷路 → 版本可回滚
 |------|------|------|
 | pre | 读上章结尾 + 查 SQLite + context_pack | pipeline_state 锁 |
 | task_card | 生成任务卡 | 缺失停止 |
-| write | 场景展开（≥4 场景） | - |
-| word_count | 字数门禁 | < 3300 红灯 |
+| write | 场景展开（≥4 场景） | Chunked Writing 分段 |
+| word_count | 字数门禁 | assembled_chapter < 3300 红灯 |
 | continuity | 上章结尾比对 | 关键词 + 人物承接 |
 | hallucination | 幻觉拦截 | 阻止无依据新设定/矛盾 |
 | scene | 场景质量 | ≥ 4 有效场景 |
 | anti_ai | 反 AI 腔（10 项检测） | ≤ 2 轻微 |
+| padding | 反水文 | 阻止凑字/重复/灌水 |
 | ingest | 入库 + 切片 + FTS + 版本 + 摘要 + 日志 | 失败禁止下一章 |
 
 ---
@@ -144,7 +145,7 @@ SQLite 记住 → 门禁防偷懒 → 摘要防迷路 → 版本可回滚
 mode = NOVEL_WRITE_MODE
 required_skill = novel-factory
 skill_called = true
-pipeline = pre → task_card → write → word_count → continuity → scene → anti_ai → ingest
+pipeline = pre → task_card → scene_plan → write_chunks → assemble_chapter → word_count → continuity → hallucination → scene → anti_ai → padding → ingest
 ```
 
 如果 novel-factory skill 不可用，必须停止并报错：

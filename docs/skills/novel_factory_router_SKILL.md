@@ -65,7 +65,7 @@ NOVEL_WRITE_MODE 触发词：
 mode = NOVEL_WRITE_MODE
 required_skill = novel-factory
 skill_called = true
-pipeline = pre → task_card → write → word_count → continuity → hallucination → scene → anti_ai → ingest
+pipeline = pre → task_card → scene_plan → write_chunks → assemble_chapter → word_count → continuity → hallucination → scene → anti_ai → padding → ingest
 
 如果无法确认 skill_called=true，禁止输出正文。
 
@@ -82,15 +82,18 @@ NOVEL_WRITE_MODE 必须执行：
 5. 读取伏笔状态
 6. 读取读者承诺
 7. 生成 chapter_task_card
-8. 调用 novel-factory skill 写正文
-9. word_count_gate
-10. continuity_gate
-11. hallucination_gate
-12. scene_quality_gate
-13. anti_ai_style_gate
-14. ingest
-15. chapter_ingest_report
-16. 自动 pre 下一章
+8. scene_plan（场景规划）
+9. write_chunks（分段写作，每段 300~900 字）
+10. assemble_chapter
+11. chapter_word_count_gate（只检查 assembled_chapter）
+12. continuity_gate
+13. hallucination_gate
+14. scene_quality_gate
+15. anti_ai_style_gate
+16. padding_guard
+17. ingest
+18. chapter_ingest_report
+19. 自动 pre 下一章
 
 禁止：
 

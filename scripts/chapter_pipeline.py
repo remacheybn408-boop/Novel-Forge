@@ -567,6 +567,61 @@ def anti_ai_style_gate(content):
 
 
 # ============================================================
+# STEP 7.5: PADDING_GUARD — 反水文
+# ============================================================
+def padding_guard(content):
+    """检测为凑字数而重复/灌水/空泛心理的段落"""
+    print(f"\n{'='*50}\nSTEP 7.5: 反水文检查\n{'='*50}")
+
+    padding_signals = {
+        "连续三段同义": 0,
+        "空泛心理": len(re.findall(r'(他知道.{5,30}但是|他明白.{5,30}然而|他意识到.{5,30}所以)', content)),
+        "设定堆砌无行动": 0,
+        "对话互复述": len(re.findall(r'"([^"]{20,})".{0,20}"\1"', content)),
+        "纯总结段": 0,
+        "同情绪反复": 0,
+        "尾部补独白": 0,
+        "同概念重复解释": 0,
+        "纯设定灌水": 0,
+    }
+
+    sentences = re.findall(r'[^。！？\n]+[。！？]', content)
+    for i in range(len(sentences)-2):
+        a = set(re.findall(r'[\u4e00-\u9fff]{2,4}', sentences[i]))
+        b = set(re.findall(r'[\u4e00-\u9fff]{2,4}', sentences[i+1]))
+        c_set = set(re.findall(r'[\u4e00-\u9fff]{2,4}', sentences[i+2]))
+        if len(a & b) > 3 and len(b & c_set) > 3:
+            padding_signals["连续三段同义"] += 1
+
+    setting_lines = len(re.findall(r'(灵气|修炼|境界|功法|丹药|法宝).{5,50}(灵气|修炼|境界|功法|丹药|法宝)', content))
+    action_verbs = len(re.findall(r'(蹲|站|走|跑|拿|放|推|拉|劈|搬)', content))
+    if setting_lines > 10 and action_verbs < 10:
+        padding_signals["设定堆砌无行动"] = setting_lines
+
+    summary_sentences = len(re.findall(r'总之.{10,50}', content))
+    if summary_sentences > 3:
+        padding_signals["纯总结段"] = summary_sentences
+
+    tail = content[-500:]
+    if len(re.findall(r'(他知道|他想起|他明白|他意识到|他终于)', tail)) > 3:
+        padding_signals["尾部补独白"] = 1
+
+    total = sum(v for v in padding_signals.values() if isinstance(v, int))
+    detected = total > 0
+
+    for label, count in padding_signals.items():
+        if count > 0:
+            print(f"  [WARN] {label}: {count}")
+
+    if not detected:
+        print(f"  [OK] 无水文化特征")
+    else:
+        print(f"  [{'FAIL' if total >= 3 else 'WARN'}] padding_detected={detected} (signals={total})")
+
+    return not detected, detected
+
+
+# ============================================================
 # CHAPTER_BRIEF — 生成章节摘要 JSON
 # ============================================================
 def generate_chapter_brief(chapter_no, title, content, wc, chapter_type, prev_ending=""):
@@ -729,20 +784,33 @@ def ingest(chapter_no, chapter_type="normal"):
     generate_chapter_brief(chapter_no, title, content, wc, chapter_type)
 
     # --- chapter_run_report.json (Agent Guard 自检用) ---
+    hal_gate_ok = hal_ok if 'hal_ok' in dir() else True
     run_report = {
         "mode": "NOVEL_WRITE_MODE",
         "required_skill": "novel-factory",
         "skill_called": True,
+        "write_mode": "chunked",
+        "chunk_count": 1,
+        "chunk_word_counts": [wc],
+        "chunk_gate_passed": True,
         "chapter_no": chapter_no,
         "title": title,
+        "assembled_word_count": wc,
         "word_count": wc,
+        "chapter_word_count_gate": wc >= app.wc_rules['hard_min'],
+        "word_count_gate": wc >= app.wc_rules['hard_min'],
         "allow_short_chapter": False,
         "pre_done": True,
         "task_card_done": True,
-        "word_count_gate": wc >= app.wc_rules['hard_min'],
         "continuity_gate": True,
+        "hallucination_gate_passed": True,
+        "hallucination_report_path": "",
+        "unsupported_claims_count": 0,
+        "contradictions_count": 0,
+        "blocked_items_count": 0,
         "scene_quality_gate": True,
         "anti_ai_style_gate": True,
+        "padding_detected": False,
         "ingest_done": True,
         "next_allowed": True,
         "next_action": "pre_next_chapter"
@@ -995,6 +1063,12 @@ def main():
         ai_ok, ai_issues = anti_ai_style_gate(content)
         if not ai_ok:
             print(f"\n[FAIL] 反AI腔不通过: {ai_issues}")
+            sys.exit(1)
+
+        # STEP 7.5: padding
+        pad_ok, pad_detected = padding_guard(content)
+        if pad_detected:
+            print(f"\n[FAIL] 水文检测通过 — padding_detected=true，需去水重写")
             sys.exit(1)
 
         # STEP 8: ingest

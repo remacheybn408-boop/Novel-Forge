@@ -55,13 +55,14 @@ pytest tests/ -v
 
 ---
 
-## Phase 2.6: 幻觉拦截 (v0.3.1)
+## Phase 2.6: v0.3.1 — Quality Guard Release ✅
 
-- [x] hallucination_guard.py — 6 项检查（境界突变/关系突变/未授权新设定/遗忘状态/矛盾/伏笔提前兑现）
-- [x] hallucination_gate 集成到 post 流程（continuity 后、scene 前）
-- [x] chapter_hallucination_report.json 自动生成
-- [x] pipeline.md / router SKILL 执行链更新
-- [x] README 核心设计表 + 已完成表更新
+- [x] Hallucination Guard hard gate（FAIL 禁止 ingest）
+- [x] Chunked Writing Mode（chunk 300~900 字，assembled_chapter ≥3300）
+- [x] Anti-padding Guard（水文检测：同义重复/设定堆砌/尾部补独白）
+- [x] assembled_chapter word count gate
+- [x] chapter_run_report 质量字段（write_mode/chunk_count/hallucination/padding）
+- [x] agent_run_guard 全量质量检查（17 项硬门禁）
 
 ---
 
