@@ -440,6 +440,56 @@ def continuity_gate(chapter_no, content):
 
 
 # ============================================================
+# STEP 5.5: HALLUCINATION — 幻觉拦截
+# ============================================================
+def hallucination_gate(chapter_no, content):
+    """检查正文是否存在无依据新增或矛盾内容"""
+    from hallucination_guard import run_hallucination_check
+
+    print(f"\n{'='*50}\nSTEP 5.5: 幻觉拦截\n{'='*50}")
+
+    prev_brief = None
+    prev_ch = chapter_no - 1
+    if prev_ch >= 1:
+        prev_brief_path = app.exports_root / "chapter_briefs" / f"chapter_{prev_ch:03d}_brief.json"
+        if prev_brief_path.exists():
+            try:
+                prev_brief = json.loads(prev_brief_path.read_text(encoding='utf-8'))
+            except Exception:
+                pass
+
+    prev_tail = prev_brief.get("ending_state", "") if prev_brief else ""
+
+    report = run_hallucination_check(
+        content, chapter_no,
+        prev_tail=prev_tail,
+        prev_brief=prev_brief
+    )
+
+    reports_dir = app.exports_root / "hallucination_reports"
+    reports_dir.mkdir(parents=True, exist_ok=True)
+    report_path = reports_dir / f"chapter_{chapter_no:03d}_hallucination_report.json"
+    report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
+    print(f"  [OK] hallucination_report: {report_path}")
+
+    if report.get("blocked_items"):
+        print(f"  [WARN] blocked: {len(report['blocked_items'])} items")
+        for b in report["blocked_items"][:3]:
+            print(f"    - {b['text'][:80]}")
+    if report.get("contradictions"):
+        print(f"  [FAIL] contradictions: {len(report['contradictions'])}")
+    if report.get("unsupported_claims"):
+        print(f"  [WARN] unsupported: {len(report['unsupported_claims'])}")
+
+    passed = report["status"] == "PASS"
+    if passed:
+        print(f"  [OK] 幻觉检查通过")
+    else:
+        print(f"  [FAIL] 幻觉检查未通过 — 需修正正文")
+    return passed, report
+
+
+# ============================================================
 # STEP 6: SCENE — 场景质量门禁
 # ============================================================
 def scene_quality_gate(content):
@@ -925,6 +975,12 @@ def main():
 
         # STEP 5: continuity
         continuity_gate(chapter_no, content)
+
+        # STEP 5.5: hallucination
+        hal_ok, hal_report = hallucination_gate(chapter_no, content)
+        if not hal_ok:
+            print(f"\n[FAIL] 幻觉拦截未通过 — 需修正正文中的矛盾或未授权新设定")
+            sys.exit(1)
 
         # STEP 6: scene
         scene_ok, scene_issues = scene_quality_gate(content)

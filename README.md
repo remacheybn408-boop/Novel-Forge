@@ -91,6 +91,7 @@ novel-pipeline-write-engine/
 | `check_schema.py` | Schema 完整性检查 |
 | `import_outline_skeleton.py` | JSON 标题骨架导入（校验 chapter_goal / conflict_point / ending_hook_direction） |
 | `agent_run_guard.py` | chapter_run_report.json 自检（PASS/FAIL） |
+| `hallucination_guard.py` | 幻觉拦截：阻止无依据新设定/矛盾/遗忘状态 |
 | `novel_factory_router_SKILL.md` | Agent 模式路由：NOVEL_WRITE_MODE / PLAN_MODE 触发词 + 执行头 |
 | Demo 项目 | `examples/demo_novel/` — 25 章骨架 + README |
 | Skill 文档 | `docs/skills/long_novel_writing_SKILL.md`（通用版） |
@@ -122,6 +123,7 @@ SQLite 记住 → 门禁防偷懒 → 摘要防迷路 → 版本可回滚
 | write | 场景展开（≥4 场景） | - |
 | word_count | 字数门禁 | < 3300 红灯 |
 | continuity | 上章结尾比对 | 关键词 + 人物承接 |
+| hallucination | 幻觉拦截 | 阻止无依据新设定/矛盾 |
 | scene | 场景质量 | ≥ 4 有效场景 |
 | anti_ai | 反 AI 腔（10 项检测） | ≤ 2 轻微 |
 | ingest | 入库 + 切片 + FTS + 版本 + 摘要 + 日志 | 失败禁止下一章 |

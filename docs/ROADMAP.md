@@ -55,6 +55,16 @@ pytest tests/ -v
 
 ---
 
+## Phase 2.6: 幻觉拦截 (v0.3.1)
+
+- [x] hallucination_guard.py — 6 项检查（境界突变/关系突变/未授权新设定/遗忘状态/矛盾/伏笔提前兑现）
+- [x] hallucination_gate 集成到 post 流程（continuity 后、scene 前）
+- [x] chapter_hallucination_report.json 自动生成
+- [x] pipeline.md / router SKILL 执行链更新
+- [x] README 核心设计表 + 已完成表更新
+
+---
+
 ## Phase 3: 工具增强
 
 - [ ] scripts/create_novel.py — 创建新小说项目

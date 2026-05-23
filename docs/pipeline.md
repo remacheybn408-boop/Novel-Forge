@@ -9,6 +9,7 @@ main()
   ├── pre  → pre_write_gate()        # 写作前：标题骨架 + 上章brief + 上下文
   └── post → word_count_gate()       # 字数门禁 (<3300 失败)
             → continuity_gate()       # 连续性检查
+            → hallucination_gate()    # 幻觉拦截 (NEW)
             → scene_quality_gate()    # 场景质量 (>=4)
             → anti_ai_style_gate()    # 反AI腔 (≤2处轻微)
             → ingest()               # 入库 + brief + run_report
