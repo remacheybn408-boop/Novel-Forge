@@ -5,7 +5,7 @@ chapter_pipeline.py — 章节写作总控流水线 V4
 
 字数门禁:
   < 3300: 红灯失败
-  3300-3500: 黄灯（需场景/连续性确认）
+  3300-3500: pass_but_low（字数额度紧，需场景/连续性确认）
   3500-3900: 最佳
   3900-4200: 正常通过
   4200-5000: 仅特殊章
@@ -271,7 +271,7 @@ def word_count_gate(content, chapter_no, chapter_type="normal"):
         return "ideal", wc
 
     if app.wc_rules['hard_min'] <= wc < app.wc_rules['ideal_min']:
-        # 黄灯区间：字数额度紧，需其他门禁确认
+        # pass_but_low: 字数额度紧，需其他门禁确认
         vcount = 0
         try:
             conn_check = connect()
@@ -282,10 +282,10 @@ def word_count_gate(content, chapter_no, chapter_type="normal"):
         except Exception:
             pass  # table may not exist yet
         if vcount >= 3:
-            print(f"  [FAIL] 黄灯+版本>={vcount} — 疑似patch凑数，必须重铺场景")
+            print(f"  [FAIL] pass_but_low+版本>={vcount} — 疑似patch凑数，必须重铺场景")
             return "patch_suspect", wc
-        print(f"  [WARN] 黄灯 ({wc} < {app.wc_rules['ideal_min']}) — 需场景/连续性确认")
-        return "yellow", wc
+        print(f"  [WARN] pass_but_low ({wc} < {app.wc_rules['ideal_min']}) — 需场景/连续性确认")
+        return "pass_but_low", wc
 
     if rules['ideal_max'] < wc <= rules['normal_max']:
         print(f"  [OK] 正常通过 (偏长)")
@@ -599,10 +599,10 @@ def main():
 
         # STEP 6: scene
         scene_ok, scene_issues = scene_quality_gate(content)
-        if wc_pass == "yellow" and not scene_ok:
-            print(f"\n[FAIL] 黄灯+场景不足 → 必须扩写")
+        if wc_pass == "pass_but_low" and not scene_ok:
+            print(f"\n[FAIL] pass_but_low+场景不足 → 必须扩写")
             sys.exit(1)
-        if not scene_ok and wc_pass != "yellow":
+        if not scene_ok and wc_pass != "pass_but_low":
             print(f"\n[FAIL] 场景门禁失败 — 需要 >= {app.min_scenes} 有效场景")
             sys.exit(1)
 

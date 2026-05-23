@@ -2,26 +2,35 @@
 
 Novel Pipeline - Write Engine 开发路线图。
 
-## Phase 1: 项目可运行 ✅ (当前已完成)
+## Phase 1: 项目基本结构 ⚠️ (大部分完成，核心脚本待验证)
 
-- [x] README 对齐真实仓库结构
-- [x] config.example.json — 配置模板
-- [x] chapter_pipeline.py 去硬编码，改为 CLI 参数 + config.json 驱动
-- [x] 字数门禁同步：3300 红线，3500-3900 最佳
-- [x] 场景门禁同步：>= 4 有效场景
-- [x] database/schema.sql — 完整 SQLite 表结构
+**已完成：**
+- [x] README 对齐真实仓库结构，标注"早期原型"
+- [x] config.example.json — 配置模板（3300 红线，4 场景）
+- [x] database/schema.sql — 完整 SQLite 表结构（含 volume_plans/chapter_plans/title_history）
 - [x] scripts/init_db.py — 数据库初始化
 - [x] scripts/check_schema.py — Schema 完整性检查
-- [x] volume_plans / chapter_plans / title_history 表已在 schema 中
-- [x] docs/skills/long_novel_writing_SKILL.md — 写作行为规范
+- [x] docs/skills/long_novel_writing_SKILL.md — 长篇写作行为规范（通用版，无具体小说绑定）
+- [x] docs/ROADMAP.md — 本文件
+
+**已完成（待用户验证）：**
+- [~] chapter_pipeline.py — 已重构为 argparse + config 驱动，移除硬编码路径/小说名/角色名
+- [~] 字数门禁：<3300 失败，3300-3500 pass_but_low，3500-3900 最佳
+- [~] 场景门禁：>=4 有效场景
+
+**待完成：**
+- [ ] 用户在实际环境中验证 chapter_pipeline.py 可正常运行
+- [ ] 确认 clone 后 `python scripts/init_db.py --config config.json` 成功
+- [ ] 确认 `pytest tests/ -v` 全部通过
 
 **验证命令：**
 ```bash
-git clone <repo-url>
+git clone https://github.com/remacheybn408-boop/novel-pipeline-write-engine.git
+cd novel-pipeline-write-engine
 cp config.example.json config.json
 python scripts/init_db.py --config config.json
 python scripts/check_schema.py --config config.json
-python scripts/chapter_pipeline.py pre 1 --config config.json --novel-slug demo_novel
+pytest tests/ -v
 ```
 
 ## Phase 2: 标题骨架与卷级连续性
@@ -39,15 +48,10 @@ python scripts/chapter_pipeline.py pre 1 --config config.json --novel-slug demo_
 
 ## Phase 3: 工具增强
 
-- [ ] tests/ — 单元测试
-  - test_word_count_gate.py
-  - test_scene_quality_gate.py
-  - test_config_load.py
-  - test_schema_init.py
-- [ ] GitHub Actions CI
+- [ ] scripts/create_novel.py — 创建新小说项目
 - [ ] scripts/export_novel.py — 导出完整小说
 - [ ] scripts/backup_db.py — 数据库备份
-- [ ] scripts/create_novel.py — 创建新小说项目
+- [ ] 更多测试覆盖（pipeline 端到端测试）
 
 **未来可考虑（backlog）：**
 - Web UI
@@ -57,4 +61,5 @@ python scripts/chapter_pipeline.py pre 1 --config config.json --novel-slug demo_
 
 ---
 
-> 当前阶段：Phase 1 已完成。Phase 2 是下一步重点。
+> 当前阶段：Phase 1 大部分完成，等待实际环境验证。
+> 下一步：验证通过后进入 Phase 2。

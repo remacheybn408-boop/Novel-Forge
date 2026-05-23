@@ -38,12 +38,12 @@ class TestWordCountGate:
         assert wc < 3300
 
     def test_at_redline_pass(self, app):
-        """3300 -> yellow (below ideal_min of 3500)"""
+        """3300 -> pass_but_low (below ideal_min of 3500)"""
         import chapter_pipeline as cp
         cp.app = app
         content = "测试" * 1650  # 3300
         result, wc = cp.word_count_gate(content, 1, "normal")
-        assert result == "yellow"
+        assert result == "pass_but_low"
 
     def test_ideal_range(self, app):
         """3700 -> ideal"""
