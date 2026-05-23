@@ -39,9 +39,12 @@ DEFAULT_CONFIG = {
 def load_config(config_path=None):
     """加载配置：优先 CLI 指定的 --config，否则从默认路径尝试"""
     if config_path:
-        with open(config_path, 'r', encoding='utf-8') as f:
-            cfg = json.load(f)
-        return {**DEFAULT_CONFIG, **cfg}
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                cfg = json.load(f)
+            return {**DEFAULT_CONFIG, **cfg}
+        except FileNotFoundError:
+            pass  # fall through to defaults
 
     for candidate in ["config.json", "config.example.json"]:
         if Path(candidate).exists():
@@ -267,17 +270,21 @@ def word_count_gate(content, chapter_no, chapter_type="normal"):
         print(f"  [OK] 最佳区间")
         return "ideal", wc
 
-    if rules['hard_min'] <= wc < rules['ideal_min']:
+    if app.wc_rules['hard_min'] <= wc < app.wc_rules['ideal_min']:
         # 黄灯区间：字数额度紧，需其他门禁确认
-        conn_check = connect()
-        vcount = conn_check.execute(
-            "SELECT COUNT(*) FROM chapter_versions WHERE novel_id=(SELECT id FROM novels WHERE slug=?) AND chapter_no=?",
-            (app.novel_slug, chapter_no)).fetchone()[0]
-        conn_check.close()
+        vcount = 0
+        try:
+            conn_check = connect()
+            vcount = conn_check.execute(
+                "SELECT COUNT(*) FROM chapter_versions WHERE novel_id=(SELECT id FROM novels WHERE slug=?) AND chapter_no=?",
+                (app.novel_slug, chapter_no)).fetchone()[0]
+            conn_check.close()
+        except Exception:
+            pass  # table may not exist yet
         if vcount >= 3:
             print(f"  [FAIL] 黄灯+版本>={vcount} — 疑似patch凑数，必须重铺场景")
             return "patch_suspect", wc
-        print(f"  [WARN] 黄灯 ({wc} < {rules['ideal_min']}) — 需场景/连续性确认")
+        print(f"  [WARN] 黄灯 ({wc} < {app.wc_rules['ideal_min']}) — 需场景/连续性确认")
         return "yellow", wc
 
     if rules['ideal_max'] < wc <= rules['normal_max']:
