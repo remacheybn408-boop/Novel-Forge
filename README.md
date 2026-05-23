@@ -166,7 +166,7 @@ Refuse to write novel正文 in normal chat mode.
 ## Skills
 
 - [novel-factory Router](docs/skills/novel_factory_router_SKILL.md) — **正文写作前必读**：模式路由 / NOVEL_WRITE_MODE 触发词 / 执行头 / 失败判定
-- [长篇写作行为规范](docs/skills/long_novel_writing_SKILL.md) — 1800 底线 / 4 场景 / 章章入库 / 卷卷入库 / 标题骨架规则
+- [长篇写作行为规范](docs/skills/long_novel_writing_SKILL.md) — 1900 底线 / 弹性字数规则 / 防幻觉 / 防水文 / 章章入库 / 卷卷入库 / 标题骨架规则
 
 ## 文档
 

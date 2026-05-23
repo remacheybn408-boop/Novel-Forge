@@ -26,7 +26,7 @@ pre
 
 - chunk 是写作单位，chapter 是入库单位
 - 字数门禁按 chapter_type 分级：普通1900-3300, 重点1900-4200, 高潮1900-5500
-- 单个 chunk 建议 300~900 字，assembled_chapter 达到类型最低线即可
+- 普通正式章的 chunk 字数由 scene_budget_plan.json 或固定模板决定；300～1000 字只适用于用户授权短章、片段草稿、微场景或样章。assembled_chapter 按 length_mode + chapter_type 检查最终字数。
 - 每章建议 4~7 个 chunks
 - chunk 失败只重写该 chunk，不重写整章
 - assembled_chapter 字数不足时补缺失场景，禁止补水文

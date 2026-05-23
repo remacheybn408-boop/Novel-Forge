@@ -83,7 +83,7 @@ NOVEL_WRITE_MODE 必须执行：
 6. 读取读者承诺
 7. 生成 chapter_task_card
 8. scene_plan（场景规划）
-9. write_chunks（分段写作，每段 300~900 字）
+9. write_chunks（分段写作；普通正式章按 scene_budget_plan.json / 固定模板控制 chunk 字数；300～1000 只用于用户授权短章、片段、微场景或样章）
 10. assemble_chapter
 11. chapter_word_count_gate（只检查 assembled_chapter）
 12. continuity_gate
