@@ -2,27 +2,20 @@
 
 Novel Pipeline - Write Engine 开发路线图。
 
-## Phase 1: 项目基本结构 ⚠️ (大部分完成，核心脚本待验证)
+## Phase 1: 项目可运行 ✅ (已完成)
 
-**已完成：**
 - [x] README 对齐真实仓库结构，标注"早期原型"
 - [x] config.example.json — 配置模板（3300 红线，4 场景）
-- [x] database/schema.sql — 完整 SQLite 表结构（含 volume_plans/chapter_plans/title_history）
-- [x] scripts/init_db.py — 数据库初始化
+- [x] database/schema.sql — 完整 SQLite 表结构（26 表 + 6 FTS5）
+- [x] scripts/init_db.py — 一键建库
 - [x] scripts/check_schema.py — Schema 完整性检查
-- [x] scripts/import_outline_skeleton.py — 标题骨架 JSON 导入（校验 + 写入）
-- [x] docs/skills/long_novel_writing_SKILL.md — 长篇写作行为规范（通用版）
-- [x] docs/ROADMAP.md — 本文件
-
-**已完成（待用户验证）：**
-- [~] chapter_pipeline.py — 已重构为 argparse + config 驱动，移除硬编码路径/小说名/角色名
-- [~] 字数门禁：<3300 失败，3300-3500 pass_but_low，3500-3900 最佳
-- [~] 场景门禁：>=4 有效场景
-
-**待完成：**
-- [ ] 用户在实际环境中验证 chapter_pipeline.py 可正常运行
-- [ ] 确认 clone 后 `python scripts/init_db.py --config config.json` 成功
-- [ ] 确认 `pytest tests/ -v` 全部通过
+- [x] scripts/import_outline_skeleton.py — JSON 标题骨架 → SQLite
+- [x] scripts/chapter_pipeline.py — argparse + config 驱动，无硬编码
+- [x] 字数门禁：<3300 失败，3500-3900 最佳
+- [x] 场景门禁：>=4 有效场景
+- [x] examples/demo_novel/ — 25 章 demo 项目
+- [x] docs/skills/long_novel_writing_SKILL.md — 通用写作行为规范
+- [x] 14 个基础测试 + GitHub Actions CI
 
 **验证命令：**
 ```bash
@@ -31,36 +24,40 @@ cd novel-pipeline-write-engine
 cp config.example.json config.json
 python scripts/init_db.py --config config.json
 python scripts/check_schema.py --config config.json
+python scripts/import_outline_skeleton.py --config config.json --input examples/demo_novel/outline_skeleton.json
 pytest tests/ -v
 ```
 
+---
+
 ## Phase 2: 标题骨架与卷级连续性
 
-规划中：
+**已完成：**
+- [x] import_outline_skeleton.py — JSON 标题骨架导入
+- [x] volume_plans / chapter_plans 基础写入
+- [x] chapter_goal / conflict_point / ending_hook_direction 校验
 
-- [ ] import_outline_skeleton.py — 从 JSON 导入标题骨架
-- [ ] volume_plans / chapter_plans 的写入与校验
-- [ ] 卷级 post（volume_post）：生成卷级总结、状态、下一卷承接点
+**待完成：**
+- [ ] pre 阶段从 volume_plans / chapter_plans 读取标题骨架
+- [ ] volume_post — 卷级总结、状态、下一卷承接点
 - [ ] chapter_brief 输出增强
-- [ ] 标题骨架入库（pre 阶段从 volume_plans/chapter_plans 读取）
 - [ ] 卷序强制检查（跨卷连续性验证）
 
-**预计：** Phase 2 完成后，可以从 JSON 骨架初始化整本书结构，逐章推进时自动读取/更新计划。
+---
 
 ## Phase 3: 工具增强
 
 - [ ] scripts/create_novel.py — 创建新小说项目
 - [ ] scripts/export_novel.py — 导出完整小说
 - [ ] scripts/backup_db.py — 数据库备份
-- [ ] 更多测试覆盖（pipeline 端到端测试）
+- [ ] 端到端流水线测试
 
 **未来可考虑（backlog）：**
 - Web UI
 - FastAPI 后端
-- 向量数据库（用于写作参考检索）
+- 向量数据库（写作参考检索）
 - Agent 编排增强
 
 ---
 
-> 当前阶段：Phase 1 大部分完成，等待实际环境验证。
-> 下一步：验证通过后进入 Phase 2。
+> 当前：Phase 1 完成，Phase 2 进行中。
