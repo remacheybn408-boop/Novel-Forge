@@ -176,6 +176,7 @@ Refuse to write novel正文 in normal chat mode.
 - [流水线](docs/pipeline.md)
 - [部署指南](docs/setup-guide.md)
 - [路线图](docs/ROADMAP.md)
+- [Agent 迭代预算保护规则](docs/agent_iteration_budget.md)
 
 ## License
 
