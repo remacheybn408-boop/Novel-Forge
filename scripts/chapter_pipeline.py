@@ -1,49 +1,101 @@
 """
-chapter_pipeline.py — 章节写作总控流水线 V3
-第一阶段：8步精简流水线
+chapter_pipeline.py — 章节写作总控流水线 V4
+8步精简流水线:
   pre → task_card → write → word_count → continuity → scene → anti_ai → ingest
 
-字数标准：
-  普通章 3300-4200 通过 | 高潮章 4200-5000 | 黄灯 3000-3300 | 红灯 <3000
+字数门禁:
+  < 3300: 红灯失败
+  3300-3500: 黄灯（需场景/连续性确认）
+  3500-3900: 最佳
+  3900-4200: 正常通过
+  4200-5000: 仅特殊章
+  > 5000: 警告
+
+场景门禁: >= 4 有效场景
 
 用法:
-  python chapter_pipeline.py pre <chapter_no> [--type normal|climax|final|short]
-  python chapter_pipeline.py post <chapter_no>
+  python chapter_pipeline.py pre <chapter_no> [--config config.json] [--novel-slug demo] [--chapter-type normal|climax|final]
+  python chapter_pipeline.py post <chapter_no> [--config config.json] [--novel-slug demo] [--chapter-type normal|climax|final]
   python chapter_pipeline.py review <chapter_no>
 """
 
-import sqlite3, re, sys
+import sqlite3, re, sys, json, argparse
 from pathlib import Path
 from datetime import datetime
 
-# ============================================================
-DB_PATH = Path(r"D:\HermesMemoryBase\database\hermes_memory.db")
-CHAPTERS_DIR = Path(r"D:\小说\格物证道\第一卷_杂役观天")
-EXPORTS_DIR = Path(r"D:\HermesMemoryBase\novels\gewuzhengdao\exports")
-STATE_DIR = EXPORTS_DIR / "pipeline_state"
-NOVEL_SLUG = "gewuzhengdao"
 
-# 字数标准（分类型）
-WORD_RULES = {
-    "normal":  {"target": 3700, "min": 3300, "max": 4200, "fail": 3000},
-    "climax":  {"target": 4500, "min": 4200, "max": 5000, "fail": 3000},
-    "final":   {"target": 5000, "min": 4500, "max": 6000, "fail": 3000},
-    "short":   {"target": 3200, "min": 3000, "max": 3300, "fail": 2800},
+# ============================================================
+# 默认值（会被 config 或 CLI 覆盖）
+# ============================================================
+DEFAULT_CONFIG = {
+    "db_path": "./data/novel_memory.db",
+    "novels_root": "./novels",
+    "exports_root": "./exports",
+    "word_count": {"hard_min": 3300, "ideal_min": 3500, "ideal_max": 3900, "normal_max": 4200, "special_max": 5000},
+    "scene_quality": {"min_effective_scenes": 4},
 }
 
+
+def load_config(config_path=None):
+    """加载配置：优先 CLI 指定的 --config，否则从默认路径尝试"""
+    if config_path:
+        with open(config_path, 'r', encoding='utf-8') as f:
+            cfg = json.load(f)
+        return {**DEFAULT_CONFIG, **cfg}
+
+    for candidate in ["config.json", "config.example.json"]:
+        if Path(candidate).exists():
+            with open(candidate, 'r', encoding='utf-8') as f:
+                cfg = json.load(f)
+            return {**DEFAULT_CONFIG, **cfg}
+    return DEFAULT_CONFIG
+
+
+# ============================================================
+# 全局状态（由 main 初始化）
+# ============================================================
+class App:
+    def __init__(self, cfg, novel_slug, novel_title, volume_no, chapters_dir=None):
+        self.cfg = cfg
+        self.novel_slug = novel_slug
+        self.novel_title = novel_title or novel_slug
+        self.volume_no = volume_no
+        self.db_path = Path(cfg["db_path"])
+        self.wc_rules = cfg.get("word_count", DEFAULT_CONFIG["word_count"])
+        self.min_scenes = cfg.get("scene_quality", DEFAULT_CONFIG["scene_quality"])["min_effective_scenes"]
+        self.novels_root = Path(cfg.get("novels_root", "./novels"))
+        self.exports_root = Path(cfg.get("exports_root", "./exports"))
+
+        if chapters_dir:
+            self.chapters_dir = Path(chapters_dir)
+        else:
+            self.chapters_dir = self.novels_root / novel_slug / f"第{volume_no:02d}卷"
+
+        self.state_dir = self.exports_root / "pipeline_state"
+
+
+app = None  # 由 main() 初始化
+
+
 def now(): return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
 def connect():
-    conn = sqlite3.connect(str(DB_PATH))
+    conn = sqlite3.connect(str(app.db_path))
     conn.row_factory = sqlite3.Row
     return conn
 
+
 def _get_novel_id(cur):
-    cur.execute("SELECT id FROM novels WHERE slug=?", (NOVEL_SLUG,))
-    return cur.fetchone()[0]
+    cur.execute("SELECT id FROM novels WHERE slug=?", (app.novel_slug,))
+    row = cur.fetchone()
+    return row[0] if row else None
+
 
 def _strip_selfcheck(text):
     idx = text.find("本章自检")
     return text[:idx] if idx > 0 else text
+
 
 def _chunk_text(text, min_size=800, max_size=1500):
     if not text: return []
@@ -62,6 +114,7 @@ def _chunk_text(text, min_size=800, max_size=1500):
         chunk_no += 1; chunks.append((chunk_no, current.strip()))
     return chunks
 
+
 def _count_chinese(text):
     return len([c for c in text if '\u4e00' <= c <= '\u9fff' or '\u3000' <= c <= '\u303f' or '\uff00' <= c <= '\uffef'])
 
@@ -70,7 +123,7 @@ def _count_chinese(text):
 # 建表（幂等）
 # ============================================================
 def ensure_tables():
-    conn = sqlite3.connect(str(DB_PATH))
+    conn = sqlite3.connect(str(app.db_path))
     cur = conn.cursor()
     cur.execute("""
     CREATE TABLE IF NOT EXISTS chapter_versions (
@@ -110,39 +163,39 @@ def ensure_tables():
 # ============================================================
 def pre_write_gate(chapter_no, chapter_type="normal"):
     conn = connect(); cur = conn.cursor(); nid = _get_novel_id(cur)
-    rules = WORD_RULES.get(chapter_type, WORD_RULES["normal"])
     log_entries = []
     prev_ch = chapter_no - 1; prev_ending = ""
 
     print("="*60)
-    print(f"STEP 1: PRE — 第{chapter_no}章 [{chapter_type}] — 《格物证道》")
+    print(f"STEP 1: PRE — 第{chapter_no}章 [{chapter_type}] — 《{app.novel_title}》")
     print("="*60)
 
     if prev_ch >= 1:
         cur.execute("SELECT title, content FROM chapters WHERE novel_id=? AND chapter_no=?", (nid, prev_ch))
         prev = cur.fetchone()
         if not prev:
-            print(f"\n⛔ 第{prev_ch}章不存在于数据库"); conn.close(); return None
-        prev_ending = _strip_selfcheck(prev['content'])[-800:]
-        cur.execute("SELECT short_summary FROM chapter_summaries WHERE novel_id=? AND chapter_id=(SELECT id FROM chapters WHERE novel_id=? AND chapter_no=?)", (nid, nid, prev_ch))
-        sm = cur.fetchone()
-        print(f"✓ 上章: 第{prev_ch}章《{prev['title']}》末400字:")
-        print(f"  {prev_ending[-400:]}")
-        log_entries.append(f"读取第{prev_ch}章结尾{len(prev_ending)}字")
+            print(f"\n[WARN] 第{prev_ch}章不存在于数据库")
+        else:
+            prev_ending = _strip_selfcheck(prev['content'])[-800:]
+            cur.execute("SELECT short_summary FROM chapter_summaries WHERE novel_id=? AND chapter_id=(SELECT id FROM chapters WHERE novel_id=? AND chapter_no=?)", (nid, nid, prev_ch))
+            sm = cur.fetchone()
+            print(f"  [OK] 上章: 第{prev_ch}章《{prev['title']}》末400字:")
+            print(f"  {prev_ending[-400:]}")
+            log_entries.append(f"读取第{prev_ch}章结尾{len(prev_ending)}字")
     else:
-        print("✓ 第1章，无上章")
+        print("  [OK] 第1章，无上章")
 
-    # 最近3章
-    print("\n✓ 最近3章:")
+    # 最近3章摘要
+    print("\n  [OK] 最近3章:")
     for ch in range(max(1, chapter_no-3), chapter_no):
         cur.execute("SELECT cs.short_summary FROM chapter_summaries cs JOIN chapters c ON c.id=cs.chapter_id WHERE c.novel_id=? AND c.chapter_no=?", (nid, ch))
         cs = cur.fetchone()
-        print(f"  第{ch}章: {cs['short_summary'][:100] if cs else '(无摘要)'}")
+        print(f"    第{ch}章: {cs['short_summary'][:100] if cs else '(无摘要)'}")
 
     # 人物
     cur.execute("SELECT name, role, identity FROM characters WHERE novel_id=?", (nid,))
     chars = cur.fetchall()
-    print(f"\n✓ 人物({len(chars)}): " + ", ".join(f"[{c['role']}]{c['name']}" for c in chars))
+    print(f"\n  [OK] 人物({len(chars)}): " + ", ".join(f"[{c['role']}]{c['name']}" for c in chars))
     log_entries.append(f"人物{len(chars)}人")
 
     # 世界观/伏笔/规则
@@ -154,21 +207,23 @@ def pre_write_gate(chapter_no, chapter_type="normal"):
     ]:
         cur.execute(sql, params)
         rows = cur.fetchall()
-        print(f"✓ {label}({len(rows)}): " + ", ".join(str(dict(r)) for r in rows[:5]))
+        print(f"  [OK] {label}({len(rows)}): " + ", ".join(str(dict(r)) for r in rows[:5]))
         log_entries.append(f"{label}{len(rows)}条")
 
     # context_pack
-    EXPORTS_DIR.mkdir(parents=True, exist_ok=True)
-    pack_path = EXPORTS_DIR / f"context_ch{chapter_no}_{datetime.now().strftime('%H%M%S')}.txt"
-    pack_path.write_text(f"写作上下文包-第{chapter_no}章\n{'='*40}\n字数:{rules['target']} | 最低:{rules['min']} | 失败:{rules['fail']}\n", encoding='utf-8')
-    print(f"\n✓ context_pack: {pack_path}")
+    app.exports_root.mkdir(parents=True, exist_ok=True)
+    pack_path = app.exports_root / f"context_ch{chapter_no}_{datetime.now().strftime('%H%M%S')}.txt"
+    pack_path.write_text(
+        f"写作上下文包-第{chapter_no}章\n{'='*40}\n"
+        f"目标字数: {app.wc_rules['ideal_min']}-{app.wc_rules['ideal_max']} | "
+        f"红线: {app.wc_rules['hard_min']}\n", encoding='utf-8')
+    print(f"\n  [OK] context_pack: {pack_path}")
 
     # task_card
     print(f"\n{'='*60}")
     print(f"TASK CARD - 第{chapter_no}章 [{chapter_type}]")
-    draft_target = "3500-3800" if chapter_type == "normal" else f"{rules['min']}-{rules['target']}"
-    print(f"  字数范围: {rules['min']}-{rules['max']} | 初稿目标: {draft_target}字 | 失败线: {rules['fail']}")
-    print(f"  必须≥4场景 | ≥2生活细节 | ≥1不完美互动")
+    print(f"  字数范围: {app.wc_rules['hard_min']}-{app.wc_rules['normal_max']} | 最佳: {app.wc_rules['ideal_min']}-{app.wc_rules['ideal_max']}")
+    print(f"  必须>={app.min_scenes}场景 | >=2生活细节 | >=1不完美互动")
     print(f"  禁止: AI句式/硬科普/总结腔/空泛心理")
     if prev_ending:
         print(f"  承接: {prev_ending[-120:]}")
@@ -177,9 +232,8 @@ def pre_write_gate(chapter_no, chapter_type="normal"):
     cur.execute("INSERT INTO novel_logs(action,target_type,detail) VALUES('pre_write','chapter',?)", ("; ".join(log_entries),))
     conn.commit(); conn.close()
 
-    # 保存 pipeline_state.json 文件锁
-    import json
-    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    # 保存 pipeline_state.json
+    app.state_dir.mkdir(parents=True, exist_ok=True)
     state = {
         "chapter_no": chapter_no, "chapter_type": chapter_type,
         "pre_done": True, "previous_tail_loaded": prev_ch >= 1,
@@ -187,49 +241,60 @@ def pre_write_gate(chapter_no, chapter_type="normal"):
         "reader_promises_checked": True, "context_pack": str(pack_path),
         "allowed_to_write": True, "timestamp": now()
     }
-    state_path = STATE_DIR / f"chapter_{chapter_no:03d}_state.json"
+    state_path = app.state_dir / f"chapter_{chapter_no:03d}_state.json"
     state_path.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding='utf-8')
-    print(f"✓ pipeline_state: {state_path}")
+    print(f"  [OK] pipeline_state: {state_path}")
 
-    print(f"\nSTEP 1 ✓ — 上下文就绪")
+    print(f"\nSTEP 1 [OK] — 上下文就绪")
     return {"chapter_no": chapter_no, "prev_ch": prev_ch, "prev_ending": prev_ending,
-            "chapter_type": chapter_type, "rules": rules, "context_pack": str(pack_path)}
+            "chapter_type": chapter_type, "context_pack": str(pack_path)}
 
 
 # ============================================================
-# STEP 4: WORD_COUNT — 字数门禁（新标准）
+# STEP 4: WORD_COUNT — 字数门禁
 # ============================================================
 def word_count_gate(content, chapter_no, chapter_type="normal"):
-    rules = WORD_RULES.get(chapter_type, WORD_RULES["normal"])
+    rules = app.wc_rules
     wc = _count_chinese(content)
     print(f"\n{'='*50}\nSTEP 4: 字数门禁 [{chapter_type}]\n{'='*50}")
-    print(f"  字数: {wc} | 目标: {rules['target']} | 范围: {rules['min']}-{rules['max']} | 失败: {rules['fail']}")
+    print(f"  字数: {wc} | 红线: {rules['hard_min']} | 最佳: {rules['ideal_min']}-{rules['ideal_max']}")
 
-    if rules['min'] <= wc <= rules['max']:
-        print(f"  ✓ 正常通过")
-        return True, wc
-    elif wc > rules['max']:
-        if chapter_type in ("climax", "final"):
-            print(f"  ✓ 高潮/卷末章允许扩展")
-            return True, wc
-        else:
-            print(f"  ⚠ 超上限，检查是否拖沓")
-            return True, wc  # 不拦截，只提醒
-    elif rules['fail'] <= wc < rules['min']:
-        # 检查是否靠patch凑数
+    if wc < rules['hard_min']:
+        print(f"  [FAIL] 红灯失败 ({wc} < {rules['hard_min']}) — 必须重写")
+        return False, wc
+
+    if rules['ideal_min'] <= wc <= rules['ideal_max']:
+        print(f"  [OK] 最佳区间")
+        return "ideal", wc
+
+    if rules['hard_min'] <= wc < rules['ideal_min']:
+        # 黄灯区间：字数额度紧，需其他门禁确认
         conn_check = connect()
         vcount = conn_check.execute(
             "SELECT COUNT(*) FROM chapter_versions WHERE novel_id=(SELECT id FROM novels WHERE slug=?) AND chapter_no=?",
-            (NOVEL_SLUG, chapter_no)).fetchone()[0]
+            (app.novel_slug, chapter_no)).fetchone()[0]
         conn_check.close()
         if vcount >= 3:
-            print(f"  ⛔ 黄灯+版本≥3 — 疑似patch凑数({vcount}个版本)，必须重铺场景而非继续patch")
+            print(f"  [FAIL] 黄灯+版本>={vcount} — 疑似patch凑数，必须重铺场景")
             return "patch_suspect", wc
-        print(f"  ⚠ 黄灯 ({wc}<{rules['min']}) — 检查场景质量和连续性")
-        return "yellow", wc  # 黄灯：需其他门禁确认
-    else:
-        print(f"  ⛔ 红灯失败 ({wc}<{rules['fail']}) — 必须重写")
-        return False, wc
+        print(f"  [WARN] 黄灯 ({wc} < {rules['ideal_min']}) — 需场景/连续性确认")
+        return "yellow", wc
+
+    if rules['ideal_max'] < wc <= rules['normal_max']:
+        print(f"  [OK] 正常通过 (偏长)")
+        return True, wc
+
+    if rules['normal_max'] < wc <= rules['special_max']:
+        if chapter_type in ("climax", "final"):
+            print(f"  [OK] 特殊章允许")
+            return True, wc
+        else:
+            print(f"  [WARN] 超上限({wc}>{rules['normal_max']}) — 检查是否拖沓")
+            return "oversize", wc
+
+    # > special_max
+    print(f"  [WARN] 超长({wc}>{rules['special_max']}) — 仅卷终章建议此字数")
+    return "oversize", wc
 
 
 # ============================================================
@@ -244,16 +309,29 @@ def continuity_gate(chapter_no, content):
     cur.execute("SELECT content FROM chapters WHERE novel_id=? AND chapter_no=?", (nid, prev_ch))
     prev = cur.fetchone()
     if not prev:
-        print(f"⛔ 连续性: 第{prev_ch}章不存在"); conn.close(); return False
+        print(f"[FAIL] 连续性: 第{prev_ch}章不存在"); conn.close(); return False
 
     prev_end = _strip_selfcheck(prev['content'])[-400:]
     ch_start = content[:400]
+
+    # 通用检测：不绑定具体角色名
     prev_words = set(re.findall(r'[\u4e00-\u9fff]{2,4}', prev_end[-200:]))
     start_words = set(re.findall(r'[\u4e00-\u9fff]{2,4}', ch_start[:200]))
-    names_prev = set(re.findall(r'(林观澜|韩烈|顾长庚|赵管事|马瘸子|小五|吴执事|季长峰|萧无极|沈青霜|周不器|黑衣执事)', prev_end))
-    names_start = set(re.findall(r'(林观澜|韩烈|顾长庚|赵管事|马瘸子|小五|吴执事|季长峰|萧无极|沈青霜|周不器|黑衣执事)', ch_start))
+
+    # 从数据库读取角色名来检测承接
+    cur.execute("SELECT name FROM characters WHERE novel_id=?", (nid,))
+    char_names = [r['name'] for r in cur.fetchall()]
+    # 构建角色名正则
+    if char_names:
+        name_pattern = '|'.join(re.escape(n) for n in char_names)
+        names_prev = set(re.findall(f'({name_pattern})', prev_end))
+        names_start = set(re.findall(f'({name_pattern})', ch_start))
+    else:
+        names_prev = set()
+        names_start = set()
+
     overlap = prev_words & start_words
-    score = len(overlap)*2 + len(names_prev & names_start)*5 + 3  # base score
+    score = len(overlap)*2 + len(names_prev & names_start)*5 + 3
 
     print(f"\n{'='*50}\nSTEP 5: 连续性检查\n{'='*50}")
     print(f"  重合词: {list(overlap)[:8]} | 人物承接: {names_prev & names_start} | 得分: {score}/15")
@@ -262,47 +340,50 @@ def continuity_gate(chapter_no, content):
         (nid, nid, chapter_no, f"得分{score}/15" if score < 15 else "正常", 3 if score < 15 else 1, 'open' if score < 15 else 'resolved'))
     conn.commit(); conn.close()
 
-    if score >= 12: print("  ✓ 通过"); return True
-    else: print("  ⚠ 警告: 建议增强承接"); return True
+    if score >= 12: print("  [OK] 通过"); return True
+    else: print("  [WARN] 建议增强承接"); return True
 
 
 # ============================================================
 # STEP 6: SCENE — 场景质量门禁
 # ============================================================
 def scene_quality_gate(content):
-    print(f"\n{'='*50}\nSTEP 6: 场景质量检查\n{'='*50}")
+    print(f"\n{'='*50}\nSTEP 6: 场景质量检查 (需要 >= {app.min_scenes} 有效场景)\n{'='*50}")
 
-    # 简单场景检测：按空行+位置变化+人物出场分块
     paragraphs = [p.strip() for p in content.split("\n") if p.strip()]
-    # 检测场景切换标志：时间词、地点词、空行密集区
-    scene_markers = re.findall(r'(第.*天|早上|傍晚|晚上|深夜|第二天|次日|清晨|黄昏|午后|下午|当天|回到|来到|走进|出了|站在|蹲在)', content)
-    location_changes = len(set(re.findall(r'(杂役院|劈柴场|矿洞|井边|灵料坊|讲经台|演武场|禁地|铺位|后山|考核场)', content)))
-    character_appearances = len(re.findall(r'(韩烈|顾长庚|赵管事|马瘸子|小五|吴执事|季长峰|萧无极|黑衣执事|老张头|赵大彪)', content))
 
-    # 粗略场景估计
+    # 场景切换标记（通用时间/地点词）
+    scene_markers = re.findall(r'(第.*天|早上|傍晚|晚上|深夜|第二天|次日|清晨|黄昏|午后|下午|当天|回到|来到|走进|出了|站在|蹲在)', content)
+    location_changes = len(set(re.findall(r'[\u4e00-\u9fff]{2,4}(?:院|场|洞|边|坊|台|地|位|山|室|殿|阁|楼|厅|堂|巷|街|道|铺)', content)))
+
+    # 人物出场
+    dialogue_speakers = len(set(re.findall(r'"([^"]{1,5})"', content)))
+
     estimated_scenes = max(len(scene_markers)//2, location_changes, 1)
-    print(f"  场景标记: {len(scene_markers)} | 地点数: {location_changes} | 配角出场: {character_appearances}")
+    print(f"  场景标记: {len(scene_markers)} | 地点变化: {location_changes} | 对话段: {dialogue_speakers}")
     print(f"  估计场景数: {estimated_scenes}")
 
     # 检查无效场景特征
     issues = []
-    # 检查总结腔
     summary_lines = len(re.findall(r'(他知道|他明白|他意识到|这意味着|这说明|总之)', content))
     if summary_lines > 5: issues.append(f"总结腔过多({summary_lines}处)")
-    # 检查是否缺少对话
+
     dialogue_lines = len(re.findall(r'"[^"]{5,}"', content))
     if dialogue_lines < 3: issues.append(f"对话过少({dialogue_lines}处)")
-    # 检查是否缺少动作
-    action_verbs = len(re.findall(r'(蹲|站|走|跑|拿|放|推|拉|按|握|劈|搬|涂|贴|刮|洗)', content))
+
+    action_verbs = len(re.findall(r'(蹲|站|走|跑|拿|放|推|拉|按|握|劈|搬|涂|贴|刮|洗|抓|踢|踩|跳|爬)', content))
     if action_verbs < 15: issues.append(f"动作描写过少({action_verbs}处)")
 
-    passed = estimated_scenes >= 3 and len(issues) < 3
+    passed = estimated_scenes >= app.min_scenes and len(issues) < 3
     if issues:
-        for i in issues: print(f"  ⚠ {i}")
+        for i in issues: print(f"  [WARN] {i}")
     if passed:
-        print(f"  ✓ 通过 (≥3场景, 无明显水症)")
+        print(f"  [OK] 通过 (>={app.min_scenes}场景, 无明显水症)")
     else:
-        print(f"  ⚠ 场景不足或存在水症")
+        if estimated_scenes < app.min_scenes:
+            print(f"  [FAIL] 场景不足 ({estimated_scenes} < {app.min_scenes})")
+        else:
+            print(f"  [WARN] 场景数够但存在水症")
     return passed, issues
 
 
@@ -316,7 +397,7 @@ def anti_ai_style_gate(content):
         "不是A而是B": len(re.findall(r'不是.{2,10}而是', content)),
         "那一刻她/他终于明白": len(re.findall(r'(那一刻|那一瞬间).{0,5}(终于明白|终于意识到|恍然大悟)', content)),
         "她/他从未想过": len(re.findall(r'从未想过|从未见过|从未感受过', content)),
-        "他意识到": len(re.findall(r'他意识到|他意识到|他明白', content)),
+        "他意识到": len(re.findall(r'他意识到|她意识到|他明白', content)),
         "这意味着": len(re.findall(r'这意味着|这说明|这代表', content)),
         "像一座废墟/像一尊雕像": len(re.findall(r'像一座|像一尊|像一个.*的', content)),
         "沉默了几秒": len(re.findall(r'沉默了几秒|沉默了片刻|沉默了.{1,4}秒', content)),
@@ -327,16 +408,16 @@ def anti_ai_style_gate(content):
 
     total = sum(checks.values())
     for label, count in checks.items():
-        if count > 0: print(f"  ⚠ {label}: {count}处")
+        if count > 0: print(f"  [WARN] {label}: {count}处")
 
     if total == 0:
-        print(f"  ✓ 零AI腔")
+        print(f"  [OK] 零AI腔")
         return True, []
     elif total <= 2:
-        print(f"  ✓ 通过 ({total}处轻微)")
+        print(f"  [OK] 通过 ({total}处轻微)")
         return True, list(k for k,v in checks.items() if v>0)
     else:
-        print(f"  ⛔ 不通过 ({total}处) — 需重写可疑段落")
+        print(f"  [FAIL] 不通过 ({total}处) — 需重写可疑段落")
         return False, list(k for k,v in checks.items() if v>0)
 
 
@@ -344,13 +425,12 @@ def anti_ai_style_gate(content):
 # STEP 8: INGEST — 自动化入库
 # ============================================================
 def ingest(chapter_no, chapter_type="normal"):
-    """自动化后处理：入库+版本+切片+摘要+日志"""
     conn = connect(); cur = conn.cursor(); nid = _get_novel_id(cur)
     ts = now()
 
-    candidates = list(CHAPTERS_DIR.glob(f"第{chapter_no}章*.txt"))
+    candidates = list(app.chapters_dir.glob(f"第{chapter_no}章*.txt"))
     if not candidates:
-        print(f"⛔ 找不到第{chapter_no}章TXT"); conn.close(); return None
+        print(f"[FAIL] 找不到第{chapter_no}章TXT"); conn.close(); return None
     filepath = candidates[0]
     title_match = re.match(r'第\d+章_(.+)\.txt', filepath.name)
     title = title_match.group(1) if title_match else filepath.stem
@@ -403,20 +483,20 @@ def ingest(chapter_no, chapter_type="normal"):
         cur.execute("INSERT INTO chapter_summaries(novel_id,chapter_id,short_summary,long_summary,key_events,characters_involved,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)",
             (nid, ch_id, short, long, ending_state, '', ts, ts))
 
-    # --- novels ---
-    cur.execute("UPDATE novels SET current_words=(SELECT COALESCE(SUM(word_count),0) FROM chapters WHERE novel_id=1), updated_at=? WHERE id=1", (ts,))
+    # --- novels update ---
+    cur.execute("UPDATE novels SET current_words=(SELECT COALESCE(SUM(word_count),0) FROM chapters WHERE novel_id=?), updated_at=? WHERE id=?", (nid, ts, nid))
 
     # --- log ---
     cur.execute("INSERT INTO novel_logs(action,target_type,target_id,detail) VALUES('ingest','chapter',?,?)",
         (ch_id, f"第{chapter_no}章入库:{wc}字,v{vno},{len(chunks)}切片"))
 
     conn.commit()
-    cur.execute("SELECT COUNT(*),COALESCE(SUM(word_count),0) FROM chapters WHERE novel_id=1")
+    cur.execute("SELECT COUNT(*),COALESCE(SUM(word_count),0) FROM chapters WHERE novel_id=?", (nid,))
     total_ch, total_wc = cur.fetchone()
     conn.close()
 
     print(f"\n{'='*50}\nSTEP 8: INGEST 入库\n{'='*50}")
-    print(f"  章节: {wc}字 v{vno} | 切片: {len(chunks)} | 全书: {total_ch}章 {total_wc:,}字 ✓")
+    print(f"  章节: {wc}字 v{vno} | 切片: {len(chunks)} | 全书: {total_ch}章 {total_wc:,}字 [OK]")
     return {"ch_id": ch_id, "word_count": wc, "version": vno, "chunks": len(chunks)}
 
 
@@ -431,7 +511,7 @@ def stage_review(chapter_no):
     cur.execute("SELECT chapter_no,title,word_count FROM chapters WHERE novel_id=? AND chapter_no BETWEEN ? AND ? ORDER BY chapter_no", (nid, start, chapter_no))
     total = 0
     for r in cur.fetchall():
-        mark = " ✓" if r['word_count'] >= 3300 else " ⚠"
+        mark = " [OK]" if r['word_count'] >= app.wc_rules['hard_min'] else " [WARN]"
         total += r['word_count']; print(f"  第{r['chapter_no']}章: {r['word_count']}字{mark}")
     print(f"  合计: {total}字 | 均: {total//3}字")
     conn.close()
@@ -440,42 +520,60 @@ def stage_review(chapter_no):
 # ============================================================
 # MAIN
 # ============================================================
-if __name__ == "__main__":
+def main():
+    global app
+
+    parser = argparse.ArgumentParser(description="Novel Pipeline - Chapter Write Engine")
+    parser.add_argument("action", choices=["pre", "post", "review"],
+                        help="pre: 写作前门禁 | post: 后处理+入库 | review: 3章复盘")
+    parser.add_argument("chapter_no", type=int, help="章节号")
+    parser.add_argument("--config", default=None, help="配置文件路径 (默认: config.json)")
+    parser.add_argument("--novel-slug", default="demo_novel", help="小说 slug (默认: demo_novel)")
+    parser.add_argument("--novel-title", default="", help="小说标题 (默认: 同 novel-slug)")
+    parser.add_argument("--volume-no", type=int, default=1, help="卷号 (默认: 1)")
+    parser.add_argument("--chapter-type", default="normal",
+                        choices=["normal", "climax", "final", "short"],
+                        help="章节类型 (默认: normal)")
+    parser.add_argument("--chapters-dir", default=None, help="章节 TXT 目录 (默认: novels/<slug>/第XX卷)")
+    parser.add_argument("--db-path", default=None, help="数据库路径 (覆盖 config.json)")
+
+    args = parser.parse_args()
+
+    # 加载配置
+    cfg = load_config(args.config)
+    if args.db_path:
+        cfg["db_path"] = args.db_path
+
+    novel_title = args.novel_title or cfg.get("default_novel_title", args.novel_slug)
+    if not args.novel_title:
+        args.novel_title = novel_title
+
+    app = App(cfg, args.novel_slug, novel_title, args.volume_no, args.chapters_dir)
     ensure_tables()
 
-    if len(sys.argv) < 3:
-        print("用法: python chapter_pipeline.py pre|post|review <chapter_no> [--type normal|climax|final|short]")
-        sys.exit(1)
+    chapter_no = args.chapter_no
+    chapter_type = args.chapter_type
 
-    action = sys.argv[1]
-    chapter_no = int(sys.argv[2])
-
-    # 解析 --type
-    chapter_type = "normal"
-    for i, a in enumerate(sys.argv):
-        if a == "--type" and i+1 < len(sys.argv):
-            chapter_type = sys.argv[i+1]
-
-    if action == "pre":
+    if args.action == "pre":
         pre_write_gate(chapter_no, chapter_type)
 
-    elif action == "post":
-        candidates = list(CHAPTERS_DIR.glob(f"第{chapter_no}章*.txt"))
+    elif args.action == "post":
+        candidates = list(app.chapters_dir.glob(f"第{chapter_no}章*.txt"))
         if not candidates:
-            print(f"⛔ 找不到第{chapter_no}章TXT"); sys.exit(1)
-
-        # 检查 pre 是否完成（state文件锁）
-        state_path = STATE_DIR / f"chapter_{chapter_no:03d}_state.json"
-        if not state_path.exists():
-            print(f"⛔ pipeline_state缺失: {state_path}")
-            print(f"   必须先运行: python chapter_pipeline.py pre {chapter_no}")
+            print(f"[FAIL] 找不到第{chapter_no}章TXT (目录: {app.chapters_dir})")
             sys.exit(1)
-        import json
+
+        # 检查 pre 是否完成
+        state_path = app.state_dir / f"chapter_{chapter_no:03d}_state.json"
+        if not state_path.exists():
+            print(f"[FAIL] pipeline_state缺失: {state_path}")
+            print(f"   必须先运行: python scripts/chapter_pipeline.py pre {chapter_no} --config config.json --novel-slug {app.novel_slug}")
+            sys.exit(1)
         state = json.loads(state_path.read_text(encoding='utf-8'))
         if not state.get("allowed_to_write"):
-            print(f"⛔ pre未完成，禁止post")
+            print(f"[FAIL] pre未完成，禁止post")
             sys.exit(1)
-        print(f"✓ pipeline_state验证通过 (pre完成于{state.get('timestamp','?')})")
+        print(f"[OK] pipeline_state验证通过 (pre完成于{state.get('timestamp','?')})")
 
         with open(candidates[0], 'r', encoding='utf-8') as f:
             content = _strip_selfcheck(f.read())
@@ -483,10 +581,10 @@ if __name__ == "__main__":
         # STEP 4: word_count
         wc_pass, wc = word_count_gate(content, chapter_no, chapter_type)
         if wc_pass == False:
-            print(f"\n⛔ 字数门禁失败。需补{WORD_RULES[chapter_type]['fail']-wc}字+。")
+            print(f"\n[FAIL] 字数门禁失败。需补{app.wc_rules['hard_min']-wc}字+。")
             sys.exit(1)
         if wc_pass == "patch_suspect":
-            print(f"\n⛔ 疑似patch凑数 — 必须重铺缺失场景，而非继续patch。回到task_card找缺失场景。")
+            print(f"\n[FAIL] 疑似patch凑数 — 必须重铺缺失场景。回到task_card找缺失场景。")
             sys.exit(1)
 
         # STEP 5: continuity
@@ -495,13 +593,16 @@ if __name__ == "__main__":
         # STEP 6: scene
         scene_ok, scene_issues = scene_quality_gate(content)
         if wc_pass == "yellow" and not scene_ok:
-            print(f"\n⛔ 黄灯+场景不足 → 必须扩写")
+            print(f"\n[FAIL] 黄灯+场景不足 → 必须扩写")
+            sys.exit(1)
+        if not scene_ok and wc_pass != "yellow":
+            print(f"\n[FAIL] 场景门禁失败 — 需要 >= {app.min_scenes} 有效场景")
             sys.exit(1)
 
         # STEP 7: anti_ai
         ai_ok, ai_issues = anti_ai_style_gate(content)
         if not ai_ok:
-            print(f"\n⛔ 反AI腔不通过: {ai_issues}")
+            print(f"\n[FAIL] 反AI腔不通过: {ai_issues}")
             sys.exit(1)
 
         # STEP 8: ingest
@@ -513,8 +614,12 @@ if __name__ == "__main__":
         stage_review(chapter_no)
 
         print(f"\n{'='*60}")
-        print(f"第{chapter_no}章全部门禁通过 ✓  {wc}字 v{result['version']}")
+        print(f"第{chapter_no}章全部门禁通过 [OK]  {wc}字 v{result['version']}")
         print(f"{'='*60}")
 
-    elif action == "review":
+    elif args.action == "review":
         stage_review(chapter_no)
+
+
+if __name__ == "__main__":
+    main()
