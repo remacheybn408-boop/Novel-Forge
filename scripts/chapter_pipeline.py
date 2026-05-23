@@ -205,6 +205,21 @@ def pre_write_gate(chapter_no, chapter_type="normal"):
         print(f"\n  [INFO] 第{chapter_no}章无标题骨架数据，按自由模式写作")
     # ── 标题骨架结束 ──
 
+    # ── 卷序检查：前面各卷是否完成 ──
+    if app.volume_no > 1:
+        for vn in range(1, app.volume_no):
+            prev_vol_chs = cur.execute(
+                "SELECT COUNT(*) as cnt FROM chapters WHERE novel_id=? AND volume_id=(SELECT id FROM volumes WHERE novel_id=? AND volume_no=?)",
+                (nid, nid, vn)).fetchone()
+            prev_vol_plan = cur.execute("SELECT planned_title FROM volume_plans WHERE novel_id=? AND volume_no=?",
+                (nid, vn)).fetchone()
+            prev_vol_name = prev_vol_plan['planned_title'] if prev_vol_plan else f"第{vn}卷"
+            if prev_vol_chs and prev_vol_chs['cnt'] == 0:
+                print(f"\n  [WARN] 卷序警告: 《{prev_vol_name}》(第{vn}卷)尚无已入库章节")
+                print(f"         建议先完成第{vn}卷再开始第{app.volume_no}卷")
+                log_entries.append(f"卷序警告:第{vn}卷未完成")
+    # ── 卷序检查结束 ──
+
     if prev_ch >= 1:
         cur.execute("SELECT title, content FROM chapters WHERE novel_id=? AND chapter_no=?", (nid, prev_ch))
         prev = cur.fetchone()
@@ -512,6 +527,9 @@ def ingest(chapter_no, chapter_type="normal"):
             (nid, chapter_no, title, content, wc, 'draft', str(filepath), ts, ts))
         ch_id = cur.lastrowid
 
+    # --- 同步 chapter_plans 状态 (planned → written) ---
+    cur.execute("UPDATE chapter_plans SET final_title=?, title_status='written', updated_at=? WHERE novel_id=? AND volume_no=? AND chapter_no=?",
+        (title, ts, nid, app.volume_no, chapter_no))
     # --- chapter_versions ---
     cur.execute("SELECT COALESCE(MAX(version_no),0) FROM chapter_versions WHERE novel_id=? AND chapter_no=?", (nid, chapter_no))
     vno = cur.fetchone()[0] + 1
