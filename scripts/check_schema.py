@@ -32,7 +32,7 @@ REQUIRED_TABLES = {
     "novel_logs": ["id", "action"],
     "reader_promises": ["id", "novel_id", "promise_title", "status"],
     "volume_plans": ["id", "novel_id", "volume_no", "planned_title", "volume_goal"],
-    "chapter_plans": ["id", "novel_id", "volume_no", "chapter_no", "chapter_goal", "conflict_point", "ending_hook_direction"],
+    "chapter_plans": ["id", "novel_id", "volume_no", "chapter_no", "chapter_goal", "conflict_point", "ending_hook_direction", "plan_status", "actual_word_count", "completion_status"],
     "title_history": ["id", "novel_id", "old_title", "new_title", "change_reason"],
     "volumes": ["id", "novel_id", "volume_no", "title"],
     "memories": ["id", "title", "content"],

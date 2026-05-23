@@ -232,6 +232,28 @@ def pre_write_gate(chapter_no, chapter_type="normal"):
             print(f"  [OK] 上章: 第{prev_ch}章《{prev['title']}》末400字:")
             print(f"  {prev_ending[-400:]}")
             log_entries.append(f"读取第{prev_ch}章结尾{len(prev_ending)}字")
+
+        # ── 读取上一章 actual chapter_brief ──
+        prev_brief_path = app.exports_root / "chapter_briefs" / f"chapter_{prev_ch:03d}_brief.json"
+        brief_data = None
+        if prev_brief_path.exists():
+            try:
+                brief_data = json.loads(prev_brief_path.read_text(encoding='utf-8'))
+                print(f"\n  [OK] 上章 brief 已加载:")
+                if brief_data.get('ending_state'):
+                    print(f"    实际结尾: {brief_data['ending_state'][:120]}")
+                if brief_data.get('next_chapter_hooks'):
+                    print(f"    遗留钩子: {brief_data['next_chapter_hooks'][:120]}")
+                if brief_data.get('planned_vs_actual_diff'):
+                    diff = json.loads(brief_data['planned_vs_actual_diff']) if isinstance(brief_data['planned_vs_actual_diff'], str) else brief_data['planned_vs_actual_diff']
+                    if diff.get('title_match') == 'changed':
+                        print(f"    [WARN] 上章标题已变更: {diff.get('planned_title','')} → {diff.get('actual_title','')}")
+                log_entries.append(f"读取第{prev_ch}章brief")
+            except Exception as e:
+                print(f"  [WARN] 上章brief读取失败: {e}")
+        elif prev_ch > 1:
+            print(f"\n  [WARN] 第{prev_ch}章 brief 文件缺失 — 建议先执行 post")
+        # ── brief 结束 ──
     else:
         print("  [OK] 第1章，无上章")
 
@@ -495,6 +517,79 @@ def anti_ai_style_gate(content):
 
 
 # ============================================================
+# CHAPTER_BRIEF — 生成章节摘要 JSON
+# ============================================================
+def generate_chapter_brief(chapter_no, title, content, wc, chapter_type, prev_ending=""):
+    """生成结构化 chapter_brief JSON 并保存到文件"""
+    # 提取首尾状态
+    lines = [l for l in content.split("\n") if l.strip() and not l.startswith("=")]
+    opening = lines[0][:200] if lines else ""
+    ending = lines[-3][:200] if len(lines) >= 3 else opening[-200:]
+
+    # 检测场景
+    scene_markers = re.findall(r'(第.*天|早上|傍晚|晚上|深夜|第二天|次日|清晨|黄昏)', content)
+    dialogue_count = len(re.findall(r'"[^"]{5,}"', content))
+
+    # 计划对比
+    conn = connect(); cur = conn.cursor(); nid = _get_novel_id(cur)
+    ch_plan = cur.execute(
+        "SELECT planned_title, chapter_goal, conflict_point, ending_hook_direction, continuity_from_previous "
+        "FROM chapter_plans WHERE novel_id=? AND volume_no=? AND chapter_no=?",
+        (nid, app.volume_no, chapter_no)).fetchone()
+    conn.close()
+
+    planned_title = ch_plan['planned_title'] if ch_plan else ""
+    title_match = "match" if title == planned_title else "changed"
+    planned_vs_actual = {
+        "planned_title": planned_title,
+        "actual_title": title,
+        "title_match": title_match,
+        "planned_goal": ch_plan['chapter_goal'] if ch_plan else "",
+        "planned_conflict": ch_plan['conflict_point'] if ch_plan else "",
+        "planned_hook": ch_plan['ending_hook_direction'] if ch_plan else "",
+    }
+
+    brief = {
+        "novel_slug": app.novel_slug,
+        "volume_no": app.volume_no,
+        "chapter_no": chapter_no,
+        "chapter_type": chapter_type,
+        "final_title": title,
+        "planned_title": planned_title,
+        "title_match_status": title_match,
+        "actual_word_count": wc,
+        "opening_state": opening,
+        "ending_state": ending,
+        "actual_main_events": f"{len(scene_markers)}场景, {dialogue_count}段对话",
+        "actual_conflicts": "详见正文",
+        "next_chapter_hooks": ch_plan['ending_hook_direction'] if ch_plan else ending[-100:],
+        "continuity_notes": "",
+        "planned_vs_actual_diff": json.dumps(planned_vs_actual, ensure_ascii=False),
+        "created_at": now()
+    }
+
+    # Write file
+    briefs_dir = app.exports_root / "chapter_briefs"
+    briefs_dir.mkdir(parents=True, exist_ok=True)
+    brief_path = briefs_dir / f"chapter_{chapter_no:03d}_brief.json"
+    brief_path.write_text(json.dumps(brief, ensure_ascii=False, indent=2), encoding='utf-8')
+    print(f"  [OK] chapter_brief: {brief_path}")
+
+    # Also store key fields in chapter_summaries
+    conn2 = connect(); cur2 = conn2.cursor(); nid2 = _get_novel_id(cur2)
+    cur2.execute("SELECT id FROM chapters WHERE novel_id=? AND chapter_no=?", (nid2, chapter_no))
+    ch = cur2.fetchone()
+    if ch:
+        cur2.execute(
+            "UPDATE chapter_summaries SET key_events=?, continuity_notes=? WHERE novel_id=? AND chapter_id=?",
+            (ending, json.dumps(planned_vs_actual, ensure_ascii=False), nid2, ch['id']))
+        conn2.commit()
+    conn2.close()
+
+    return brief
+
+
+# ============================================================
 # STEP 8: INGEST — 自动化入库
 # ============================================================
 def ingest(chapter_no, chapter_type="normal"):
@@ -527,9 +622,26 @@ def ingest(chapter_no, chapter_type="normal"):
             (nid, chapter_no, title, content, wc, 'draft', str(filepath), ts, ts))
         ch_id = cur.lastrowid
 
-    # --- 同步 chapter_plans 状态 (planned → written) ---
-    cur.execute("UPDATE chapter_plans SET final_title=?, title_status='written', updated_at=? WHERE novel_id=? AND volume_no=? AND chapter_no=?",
-        (title, ts, nid, app.volume_no, chapter_no))
+    # --- 同步 chapter_plans 状态 ---
+    planned_title_row = cur.execute(
+        "SELECT planned_title FROM chapter_plans WHERE novel_id=? AND volume_no=? AND chapter_no=?",
+        (nid, app.volume_no, chapter_no)).fetchone()
+    planned_title = planned_title_row['planned_title'] if planned_title_row else ""
+
+    cur.execute("""UPDATE chapter_plans SET final_title=?, title_status='written', plan_status='ingested',
+        actual_word_count=?, completion_status='done', ingested_at=?, updated_at=?
+        WHERE novel_id=? AND volume_no=? AND chapter_no=?""",
+        (title, wc, ts, ts, nid, app.volume_no, chapter_no))
+
+    # --- title_history: 标题变化追踪 ---
+    if planned_title and title != planned_title:
+        cur.execute("""INSERT INTO title_history(novel_id, volume_no, chapter_no,
+            old_title, new_title, title_type, change_reason, changed_at)
+            VALUES(?,?,?,?,?,?,?,?)""",
+            (nid, app.volume_no, chapter_no, planned_title, title, "chapter",
+             "正文重点与预设标题不完全一致，post后自动调整标题", ts))
+        print(f"  [INFO] 标题变化已记录: '{planned_title}' → '{title}'")
+    # --- chapter_plans 状态更新完成 ---
     # --- chapter_versions ---
     cur.execute("SELECT COALESCE(MAX(version_no),0) FROM chapter_versions WHERE novel_id=? AND chapter_no=?", (nid, chapter_no))
     vno = cur.fetchone()[0] + 1
@@ -562,6 +674,10 @@ def ingest(chapter_no, chapter_type="normal"):
     # --- novels update ---
     cur.execute("UPDATE novels SET current_words=(SELECT COALESCE(SUM(word_count),0) FROM chapters WHERE novel_id=?), updated_at=? WHERE id=?", (nid, ts, nid))
 
+    # --- chapter_brief ---
+    conn.commit()  # commit partial work before brief generation
+    generate_chapter_brief(chapter_no, title, content, wc, chapter_type)
+
     # --- log ---
     cur.execute("INSERT INTO novel_logs(action,target_type,target_id,detail) VALUES('ingest','chapter',?,?)",
         (ch_id, f"第{chapter_no}章入库:{wc}字,v{vno},{len(chunks)}切片"))
@@ -589,9 +705,13 @@ def volume_post():
 
     vol_no = app.volume_no
 
-    # 统计本卷章节
-    cur.execute("SELECT chapter_no, title, word_count, status FROM chapters WHERE novel_id=? AND volume_id=(SELECT id FROM volumes WHERE novel_id=? AND volume_no=?) ORDER BY chapter_no",
-        (nid, nid, vol_no))
+    # 统计本卷章节（通过 chapter_plans 找已写入的）
+    cur.execute("""SELECT c.chapter_no, c.title, c.word_count, c.status
+        FROM chapters c
+        JOIN chapter_plans cp ON cp.novel_id=c.novel_id AND cp.chapter_no=c.chapter_no AND cp.volume_no=?
+        WHERE c.novel_id=?
+        ORDER BY c.chapter_no""",
+        (vol_no, nid))
     chapters = cur.fetchall()
     if not chapters:
         print(f"[FAIL] 第{vol_no}卷无章节数据"); conn.close(); return
@@ -645,7 +765,7 @@ def volume_post():
             print(f"    [{c['role']}] {c['name']}{arc_info}")
 
     # 下一卷承接点
-    if vol_plan and vol_plan.get('unresolved_hooks_to_next'):
+    if vol_plan and vol_plan['unresolved_hooks_to_next']:
         print(f"\n  >>> 下一卷承接点 <<<")
         print(f"  {vol_plan['unresolved_hooks_to_next']}")
 
@@ -660,6 +780,35 @@ def volume_post():
         (f"第{vol_no}卷:{total_ch}章{total_wc}字",))
     conn.commit()
     conn.close()
+
+    # ── 输出 volume_report.json ──
+    reports_dir = app.exports_root / "volume_reports"
+    reports_dir.mkdir(parents=True, exist_ok=True)
+    completed = total_ch - len(drafts)
+    report = {
+        "novel_slug": app.novel_slug,
+        "volume_no": vol_no,
+        "volume_title": vol_plan['planned_title'] if vol_plan else f"第{vol_no}卷",
+        "total_chapters": total_ch,
+        "completed_chapters": completed,
+        "unfinished_chapters": len(drafts),
+        "total_word_count": total_wc,
+        "average_word_count": total_wc // total_ch if total_ch else 0,
+        "volume_goal": vol_plan['volume_goal'] if vol_plan else "",
+        "volume_goal_completion_status": "partial" if drafts else "complete",
+        "opening_state": vol_plan['opening_state'] if vol_plan else "",
+        "ending_state": vol_plan['ending_target'] if vol_plan else "",
+        "open_plot_threads": [{"title": t['title'], "status": t['status']} for t in open_threads],
+        "open_reader_promises": [],
+        "character_arc_updates": [{"name": c['name'], "role": c['role']} for c in active_chars],
+        "unresolved_hooks_to_next": vol_plan['unresolved_hooks_to_next'] if vol_plan else "",
+        "next_volume_opening_requirements": f"承接第{vol_no}卷结尾，处理遗留钩子",
+        "quality_flags": "drafts_exist" if drafts else "all_final",
+        "created_at": ts
+    }
+    report_path = reports_dir / f"volume_{vol_no:02d}_report.json"
+    report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
+    print(f"  [OK] volume_report: {report_path}")
 
 
 # ============================================================

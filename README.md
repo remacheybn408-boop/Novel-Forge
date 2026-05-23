@@ -75,34 +75,28 @@ novel-pipeline-write-engine/
 |------|------|
 | `chapter_pipeline.py` | 8 步流水线（pre / post / review / volume），argparse + config 驱动 |
 | pre 标题骨架 | 自动从 volume_plans / chapter_plans 读取，TASK CARD 展示指引 |
-| volume_post | 卷级总结：统计 + 伏笔状态 + 角色状态 + 下一卷承接点 |
+| pre 读取上章 brief | 读取上一章 ending_state / next_chapter_hooks / 标题变更 |
+| chapter_brief | post 后生成 chapter_XXX_brief.json + 写入 chapter_summaries |
+| volume_post | 卷级总结 + volume_report.json |
+| title_history | 标题变更自动记录 |
+| chapter_plans 状态 | planned → written → ingested，同步 actual_word_count |
 | 字数门禁 | < 3300 失败，3500–3900 最佳 |
 | 场景门禁 | ≥ 4 有效场景 |
 | `schema.sql` | 26 表 + 6 FTS5 索引，含 volume_plans / chapter_plans / title_history |
 | `init_db.py` | 一键建库 |
 | `check_schema.py` | Schema 完整性检查 |
 | `import_outline_skeleton.py` | JSON 标题骨架导入（校验 chapter_goal / conflict_point / ending_hook_direction） |
-| Demo 项目 | `examples/demo_novel/` — 25 章完整骨架可跑通全流程 |
-| Skill 文档 | `docs/skills/long_novel_writing_SKILL.md`（通用版，无具体小说绑定） |
-| CI | GitHub Actions 自动跑 pytest |
+| Demo 项目 | `examples/demo_novel/` — 25 章骨架 + README |
+| Skill 文档 | `docs/skills/long_novel_writing_SKILL.md`（通用版） |
+| 测试 | 21 个测试 + GitHub Actions CI |
 
 ---
 
-## Phase 2 剩余
+## Phase 3 规划
 
-- [ ] chapter_brief 输出增强
-- [ ] pre 读取上一章 actual chapter_brief
-- [ ] volume_post 输出结构化 volume_report.json
-- [ ] chapter_plans 状态更新细化
-- [ ] title_history 自动记录标题变化
-- [ ] 端到端 demo 测试增强
-
----
-
-## 后续（Phase 3）
-
-- [ ] export_novel.py / backup_db.py
-- [ ] 端到端流水线测试
+- [ ] scripts/create_novel.py — 创建新小说项目
+- [ ] scripts/export_novel.py — 导出完整小说
+- [ ] scripts/backup_db.py — 数据库备份
 - Backlog：Web UI / FastAPI / 向量数据库
 
 详见 [ROADMAP](docs/ROADMAP.md)
