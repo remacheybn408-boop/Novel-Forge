@@ -165,7 +165,11 @@ def run_guard(guard_name: str, content: str, chapter_no: int,
     try:
         mod = importlib.import_module(module_name)
         fn = getattr(mod, func_name)
-        return fn(content, chapter_no)
+        result = fn(content, chapter_no)
+        # Handle guards that return tuples (report, claims)
+        if isinstance(result, tuple):
+            result = result[0]  # take the report dict
+        return result
     except Exception as e:
         return {
             "guard": guard_name, "status": "WARNING",

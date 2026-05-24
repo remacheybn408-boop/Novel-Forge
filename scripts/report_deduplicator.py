@@ -10,7 +10,8 @@ report_deduplicator.py — 门禁报告去重与合并 v0.4.0
   from report_deduplicator import deduplicate_warnings
   merged = deduplicate_warnings(warnings_list)
 """
-import json, sys, statistics
+import json, sys, statistics, argparse
+from pathlib import Path
 from collections import defaultdict
 from typing import List, Dict
 
