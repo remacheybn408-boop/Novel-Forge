@@ -358,6 +358,16 @@ def build_report(text: str, chapter_no: int = 1) -> dict:
 
 
 # ═══════════════════════════════════════════════════
+# Guard Registry entry point (v0.4.5)
+# ═══════════════════════════════════════════════════
+
+def run_dialogue_naturalness_check(content: str, chapter_no: int = 0,
+                                   *args, **kwargs) -> dict:
+    """Guard Registry entry point. Wraps build_report()."""
+    return build_report(content, chapter_no)
+
+
+# ═══════════════════════════════════════════════════
 # CLI
 # ═══════════════════════════════════════════════════
 

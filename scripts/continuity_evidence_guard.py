@@ -7,6 +7,20 @@ continuity_evidence_guard.py — 章章连续证据门禁 v0.3.1-calibrated
 import re, json, sys, argparse
 from pathlib import Path
 
+
+def safe_int(value, default=0):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def safe_float(value, default=0.0):
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
 # ═══════════════════════════════════════════════════
 # 硬/软状态分类
 # ═══════════════════════════════════════════════════
@@ -223,11 +237,9 @@ def run_continuity_evidence_check(chapter_no, content, prev_chapter_no=None,
     """主入口"""
 
     # 规范化 chapter_no
-    if isinstance(chapter_no, str):
-        m = re.search(r'\d+', chapter_no)
-        chapter_no = int(m.group()) if m else chapter_no
+    chapter_no = safe_int(chapter_no, 0)
 
-    prev_chapter_no = prev_chapter_no or (chapter_no - 1)
+    prev_chapter_no = safe_int(prev_chapter_no, 0) or (chapter_no - 1)
     prev_brief = prev_brief or {}
     chapter_plan = chapter_plan or {}
     volume_plan = volume_plan or {}

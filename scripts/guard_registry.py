@@ -87,7 +87,7 @@ GUARD_RUNNERS = {
     "hallucination_guard":        ("hallucination_guard", "run_hallucination_check"),
     "scene_delta_guard":          ("scene_delta_guard", "run_scene_delta_check"),
     "padding_guard":              ("padding_guard", "run_padding_check"),
-    "anti_ai_guard":              ("anti_ai_guard", "run_anti_ai_check"),
+    "anti_ai_guard":              ("anti_ai_patterns", "run_anti_ai_check"),
     "show_dont_tell_guard":       ("show_dont_tell_guard", "run_show_dont_tell_check"),
     "character_voice_guard":      ("character_voice_guard", "run_character_voice_check"),
     "dialogue_beat_guard":        ("dialogue_beat_guard", "run_dialogue_beat_check"),
@@ -199,8 +199,14 @@ def run_single_guard(guard_name: str, content: str, chapter_no: int,
         sig_aware_guards = {
             "scene_delta_guard", "padding_guard",
         }
+        # Guards with (chapter_no, content, ...) instead of (content, chapter_no, ...)
+        chapter_first_guards = {
+            "continuity_evidence_guard",
+        }
         if guard_name in sig_aware_guards:
             raw = fn(content, chapter_type)
+        elif guard_name in chapter_first_guards:
+            raw = fn(chapter_no, content)
         else:
             raw = fn(content, chapter_no)
 
@@ -334,4 +340,36 @@ def run_orchestrated(content: str, chapter_no: int, mode: str = "standard",
             "compliance_can_block": True,
             "max_final_tasks": (config or {}).get("quality_policy", {}).get("max_final_revision_tasks", 5),
         },
+    }
+
+
+# ═══════════════════════════════════════════════════
+# Registry self-check (v0.4.5 hotfix)
+# ═══════════════════════════════════════════════════
+
+def validate_guard_registry() -> dict:
+    """Verify all registered guards are importable with valid entry points."""
+    import importlib
+    errors = []
+    for guard_name, (module_name, func_name) in GUARD_RUNNERS.items():
+        try:
+            mod = importlib.import_module(module_name)
+        except Exception as e:
+            errors.append({
+                "guard": guard_name,
+                "module": module_name,
+                "error": f"import failed: {e}",
+            })
+            continue
+        if not hasattr(mod, func_name):
+            errors.append({
+                "guard": guard_name,
+                "module": module_name,
+                "function": func_name,
+                "error": "missing function",
+            })
+    return {
+        "ok": not errors,
+        "errors": errors,
+        "registered_count": len(GUARD_RUNNERS),
     }
