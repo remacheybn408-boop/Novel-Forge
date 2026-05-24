@@ -735,7 +735,7 @@ def ingest(chapter_no, chapter_type="normal"):
             (title, content, wc, str(filepath), ts, ch_id))
         cur.execute("DELETE FROM chapter_chunks WHERE chapter_id=?", (ch_id,))
         try: cur.execute("DELETE FROM novel_chapter_fts WHERE rowid=?", (ch_id,))
-        except: pass
+        except Exception: pass  # FTS table may not exist yet
     else:
         cur.execute("INSERT INTO chapters(novel_id,chapter_no,title,content,word_count,status,file_path,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
             (nid, chapter_no, title, content, wc, 'draft', str(filepath), ts, ts))
