@@ -161,34 +161,82 @@ def split_scene_or_beats(content):
 # ═══════════════════════════════════════════════════
 
 def analyze_scene_delta(item):
-    """分析单个场景/节拍的推进量"""
+    """分析单个场景/节拍的推进量 — v0.4.5 叙事化升级
+
+    新增6种delta类型替代纯关键词匹配:
+      - plot_delta:      新发现或事件推进
+      - location_delta:  空间转移 (新!)
+      - physical_delta:  身体/物件可见变化 (新!)
+      - social_delta:    关系/地位/惩罚变化 (新!)
+      - knowledge_delta: 主角获得新认知 (新!)
+      - character_state: 人物心理状态变化
+      - worldbuilding:   世界观揭示
+      - promise_delta:   读者承诺/钩子
+    """
     text = item["text"]
     wc = len([c for c in text if '\u4e00' <= c <= '\u9fff'])
 
     delta = {
-        "plot": "",
+        "plot_delta": "",
+        "location_delta": "",
+        "physical_delta": "",
+        "social_delta": "",
+        "knowledge_delta": "",
         "character_state": "",
-        "relationship": "",
-        "conflict": "",
         "worldbuilding": "",
-        "reader_promise": "",
-        "next_hook": ""
+        "promise_delta": "",
     }
 
-    if re.search(r'(发现|察觉|注意|看到|听到|找到|获得|失去|完成|失败|成功|判断|推测|看出|注意到|观察到|测量|验证|确认)', text):
-        delta["plot"] = "新发现或事件推进"
-    if re.search(r'(决定|选择|放弃|坚持|改变|转变|动摇|坚定|犹豫|认命|不甘|愤怒|紧张|镇静|冷静)', text):
+    # ── plot_delta: 新发现或事件推进 ──
+    if re.search(r'(发现|察觉|注意|看到|听到|找到|获得|失去|完成|失败|成功|'
+                 r'判断|推测|看出|注意到|观察到|测量|验证|确认|'
+                 r'宣布|公布|通知|名单|考核|登记|记名)', text):
+        delta["plot_delta"] = "事件推进"
+
+    # ── location_delta: 空间发生转移 ──
+    if re.search(r'(走到|来到|被带到|拖进|推进|推向|推向|带回|'
+                 r'绕过|穿过|回到|进了|出了|离开|'
+                 r'杂役院|劈柴场|伙房|矿洞|后山|演武场|天井|执事堂|'
+                 r'通铺|山门|禁地|石室)', text):
+        delta["location_delta"] = "空间转移"
+
+    # ── physical_delta: 身体或物件出现可见变化 ──
+    if re.search(r'(痉挛|铁锈味|水沫子|手抖|腿软|冷汗|指节发白|'
+                 r'眼前发黑|耳鸣|刺痛|灼痛|抽痛|肿包|血痂|渗血|'
+                 r'裂开|裂纹|碎裂|卷刃|卷口|豁口|凹陷|缺口|缺角|'
+                 r'碎屑|木屑|铁屑|水纹|涟漪|震颤|倾斜|松动|崩开|'
+                 r'折断|散.*一地|刀.*弹起|炭笔.*断|流鼻血)', text):
+        delta["physical_delta"] = "身体/物件变化"
+
+    # ── social_delta: 关系/地位/惩罚变化 ──
+    if re.search(r'(记名|扣饭|罚工|加活|加量|盯上|排挤|孤立|'
+                 r'哄笑|嘲笑|避开|退开|让开|不敢靠近|被赶|被拦|'
+                 r'怀疑|质疑|作弊|以下犯上|冒犯|瞪|盯|'
+                 r'压.*跪|按.*头|攥.*头发|戳.*脑门)', text):
+        delta["social_delta"] = "社会关系变化"
+
+    # ── knowledge_delta: 主角获得新认知 ──
+    if re.search(r'(意识到|认识到|明白|理解|知道|懂|'
+                 r'判断|推测|发现规律|找到方法|确认|'
+                 r'看出|注意到|观察到|他.*知道|他.*懂)', text):
+        delta["knowledge_delta"] = "新认知"
+
+    # ── character_state: 人物状态变化 ──
+    if re.search(r'(决定|选择|放弃|坚持|改变|转变|动摇|坚定|犹豫|'
+                 r'认命|不甘|愤怒|紧张|镇静|冷静|恨|怕|忍)', text):
         delta["character_state"] = "人物状态变化"
-    if re.search(r'(争吵|和解|合作|背叛|信任|怀疑|感激|怨恨|试探|打量|审视)', text):
-        delta["relationship"] = "关系互动或变化"
-    if re.search(r'(阻止|反对|对抗|冲突|矛盾|争执|较量|斗法|战斗|打斗|对峙|僵|瞪|挑衅|威逼|刁难|威胁)', text):
-        delta["conflict"] = "冲突升级或解决"
-    if re.search(r'(规则|法则|定律|原理|机制|体系|结构|本源|天道|灵力|灵气)', text):
+
+    # ── worldbuilding ──
+    if re.search(r'(规则|法则|定律|原理|机制|体系|结构|本源|天道|灵力|灵气|'
+                 r'灵根|废灵根|役牌|执事堂|杂役.*等|等级)', text):
         delta["worldbuilding"] = "世界观揭示或深化"
-    if re.search(r'(约定|承诺|答应|保证|誓言|一定会|必须|早晚有一天)', text):
-        delta["reader_promise"] = "读者承诺推进"
-    if re.search(r'(但.{0,20}(?:突然|忽然|竟然|却)|然而.{0,20}(?:发现|出现)|而.{0,10}(?:不知|还没|尚未))', text):
-        delta["next_hook"] = "留下悬念或钩子"
+
+    # ── promise_delta: 读者承诺/钩子 ──
+    if re.search(r'(约定|承诺|答应|保证|誓言|一定会|必须|早晚有一天|'
+                 r'但.{0,20}(?:突然|忽然|竟然|却)|'
+                 r'然而.{0,20}(?:发现|出现)|'
+                 r'而.{0,10}(?:不知|还没|尚未))', text):
+        delta["promise_delta"] = "留下悬念或钩子"
 
     delta_count = sum(1 for v in delta.values() if v)
     item_type = item.get("beat_type", "scene")
@@ -208,7 +256,7 @@ def analyze_scene_delta(item):
 # ═══════════════════════════════════════════════════
 
 def check_single_scene_multi_delta(analyzed, content, padding_score=0):
-    """全章只有一个场景/节拍时的特殊判定"""
+    """全章只有一个场景/节拍时的特殊判定 — v0.4.5 适配新delta类型"""
     if len(analyzed) != 1:
         return False
 
@@ -216,9 +264,9 @@ def check_single_scene_multi_delta(analyzed, content, padding_score=0):
     d = s["delta"]
 
     conditions = [
-        bool(d["plot"]),
-        bool(d["conflict"] or d["character_state"]),
-        bool(d["reader_promise"] or d["next_hook"]),
+        bool(d.get("plot_delta")),
+        bool(d.get("physical_delta") or d.get("social_delta") or d.get("character_state")),
+        bool(d.get("promise_delta")),
         s["word_count"] >= 1900,
         padding_score <= 60,
     ]

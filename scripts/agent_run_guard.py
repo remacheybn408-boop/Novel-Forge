@@ -176,6 +176,20 @@ def main() -> None:
     if d.get("execution_receipt_verified") is not True:
         fail("execution_receipt_verified must be true")
 
+    # ── v0.4.5: guard_summary check ──
+    guard_summary_path = d.get("guard_summary_path", "")
+    if not guard_summary_path:
+        fail("guard_summary_path missing — guard_registry not executed")
+    gs_path = Path(guard_summary_path)
+    if not gs_path.exists():
+        fail(f"guard_summary not found: {guard_summary_path}")
+    try:
+        gs = json.loads(gs_path.read_text(encoding="utf-8"))
+        if gs.get("overall_status") == "FAIL":
+            fail("guard_summary overall_status is FAIL")
+    except Exception as e:
+        fail(f"guard_summary parse error: {e}")
+
     print("PASS_NOVEL_WRITE_GUARD")
 
 

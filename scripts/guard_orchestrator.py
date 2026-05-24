@@ -182,72 +182,17 @@ def run_orchestrated(content: str, chapter_no: int, mode: str = "standard",
                      config: dict = None,
                      custom_guards: list[str] = None,
                      reports_dir: str = "") -> dict:
-    """Orchestrate all guards for the given mode"""
-    policy = config.get("quality_policy", {}) if config else {}
+    """
+    Orchestrate all guards — v0.4.5: delegates to guard_registry.
 
-    if mode == "debug" and custom_guards:
-        guards = custom_guards
-    else:
-        guards = get_guards_for_mode(mode, content, policy)
-
-    results = {}
-    warnings_list = []
-    blocked = []
-    skipped = []
-    executed = []
-
-    for guard_name in guards:
-        result = run_guard(guard_name, content, chapter_no,
-                          prev_tail, prev_brief, config)
-
-        if result is None:
-            skipped.append(guard_name)
-            continue
-
-        result = enforce_level_rules(result, guard_name)
-        results[guard_name] = result
-        executed.append(guard_name)
-
-        # Save report
-        if reports_dir:
-            rp = Path(reports_dir) / f"chapter_{chapter_no:03d}_{guard_name}_report.json"
-            rp.parent.mkdir(parents=True, exist_ok=True)
-            rp.write_text(json.dumps(result, ensure_ascii=False, indent=2),
-                         encoding="utf-8")
-
-        if result.get("status") in ("BLOCK", "BLOCKED"):
-            blocked.append(guard_name)
-        elif result.get("status") == "WARNING":
-            # Extract warnings with confidence
-            for flag in result.get("flags", []):
-                flag["source_guard"] = guard_name
-                flag.setdefault("confidence", 0.65)
-                warnings_list.append(flag)
-
-    # ── 构建调度报告 ──
-    final_status = "PASS"
-    if blocked:
-        final_status = "BLOCKED"
-    elif warnings_list:
-        final_status = "NEED_REVISION"
-
-    return {
-        "guard": "guard_orchestrator",
-        "version": "v0.4.0",
-        "run_mode": mode,
-        "executed_guards": executed,
-        "skipped_guards": skipped,
-        "blocked_by": blocked,
-        "warning_count": len(warnings_list),
-        "final_status": final_status,
-        "results": results,
-        "warnings": warnings_list,
-        "policy": {
-            "quality_guards_warning_only": True,
-            "compliance_can_block": True,
-            "max_final_tasks": policy.get("max_final_revision_tasks", 5),
-        },
-    }
+    This is now a thin wrapper around guard_registry.run_standard_guards.
+    All guard execution logic lives in guard_registry.py.
+    """
+    from guard_registry import run_orchestrated as _run
+    return _run(content, chapter_no, mode=mode,
+                prev_tail=prev_tail, prev_brief=prev_brief,
+                config=config, custom_guards=custom_guards,
+                reports_dir=reports_dir)
 
 
 # ═══════════════════════════════════════════════════

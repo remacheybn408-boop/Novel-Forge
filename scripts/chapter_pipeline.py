@@ -711,11 +711,19 @@ def ingest(chapter_no, chapter_type="normal"):
     if not candidates:
         print(f"[FAIL] 找不到第{chapter_no}章TXT"); conn.close(); return None
     filepath = candidates[0]
+    # v0.4.5: Extract title from content's first heading line, prefer over filename
     title_match = re.match(r'第\d+章_(.+)\.txt', filepath.name)
-    title = title_match.group(1) if title_match else filepath.stem
+    file_title = title_match.group(1) if title_match else filepath.stem
 
     with open(filepath, 'r', encoding='utf-8') as f: raw = f.read()
     content = _strip_selfcheck(raw)
+
+    # Try to extract actual title from content (supports punctuation)
+    content_title_match = re.search(r'^#\s*第[一二三四五六七八九十百千\d]+章\s+(.+?)$', content.strip(), re.MULTILINE)
+    if content_title_match:
+        title = content_title_match.group(1).strip()
+    else:
+        title = file_title
     wc = _count_chinese(content)
 
     # --- chapters ---
@@ -1119,6 +1127,17 @@ def main():
             print(f"[FAIL] pre未完成，禁止post")
             sys.exit(1)
         print(f"[OK] pipeline_state验证通过 (pre完成于{state.get('timestamp','?')})")
+
+        # v0.4.5: FTS5 health check before post
+        try:
+            from fts_health import ensure_fts_healthy
+            fts_result = ensure_fts_healthy(cfg)
+            if fts_result["action"] == "repaired":
+                print(f"  [FTS] Repaired: {fts_result.get('repair',{}).get('repaired_count',0)} tables")
+            elif fts_result["action"] == "repair_failed":
+                print(f"  [WARN] FTS repair failed — fallback LIKE search will be used")
+        except ImportError:
+            pass
 
         with open(candidates[0], 'r', encoding='utf-8') as f:
             content = _strip_selfcheck(f.read())
