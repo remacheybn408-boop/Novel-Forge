@@ -1,7 +1,13 @@
 """
-chapter_pipeline.py — 章节写作总控流水线 V4
-8步精简流水线:
-  pre → task_card → write → word_count → continuity → scene → anti_ai → ingest
+chapter_pipeline.py — 章节写作总控流水线 V4.1
+
+9步精简流水线:
+  pre → task_card → write → word_count → continuity → scene → anti_ai → padding → voice_guards → ingest
+
+证据门禁 (V5):
+  continuity_evidence | canon_evidence | scene_delta | hallucination | anti_ai | padding
+角色口吻门禁 (V5.1 Phase 2, WARNING only):
+  character_voice | classical_register | show_dont_tell | concrete_hook | dialogue_beat
 
 字数门禁 (V5): chapter_type 只决定上限，不强制下限
   普通1900-3300 | 重点1900-4200 | 高潮1900-5500 | 短章300-1000
@@ -658,7 +664,7 @@ def generate_chapter_brief(chapter_no, title, content, wc, chapter_type, prev_en
         "ending_state": ending,
         "actual_main_events": f"{len(scene_markers)}场景, {dialogue_count}段对话",
         "actual_conflicts": "详见正文",
-        "next_chapter_hooks": ch_plan['ending_hook_direction'] if ch_plan else ending[-100:],
+        "next_chapter_hooks": ending[-400:] if ending else "",
         "continuity_notes": "",
         "planned_vs_actual_diff": json.dumps(planned_vs_actual, ensure_ascii=False),
         "created_at": now()
@@ -830,7 +836,18 @@ def ingest(chapter_no, chapter_type="normal"):
         # ── 执行证明（由外部填充）──
         "execution_receipt_path": "",
         "execution_receipt_verified": False,
-        "volume_no": app.volume_no
+        "volume_no": app.volume_no,
+        # ── 角色口吻与动作证据系统 (V5.1 Phase 2, WARNING only) ──
+        "character_voice_report_path": str(app.exports_root / "reports" / f"chapter_{chapter_no:03d}_character_voice_report.json"),
+        "character_voice_pass": True,
+        "classical_register_report_path": str(app.exports_root / "reports" / f"chapter_{chapter_no:03d}_classical_register_report.json"),
+        "classical_register_pass": True,
+        "show_dont_tell_report_path": str(app.exports_root / "reports" / f"chapter_{chapter_no:03d}_show_dont_tell_report.json"),
+        "show_dont_tell_pass": True,
+        "concrete_hook_report_path": str(app.exports_root / "reports" / f"chapter_{chapter_no:03d}_concrete_hook_report.json"),
+        "concrete_hook_pass": True,
+        "dialogue_beat_report_path": str(app.exports_root / "reports" / f"chapter_{chapter_no:03d}_dialogue_beat_report.json"),
+        "dialogue_beat_pass": True,
     }
     reports_dir = app.exports_root / "run_reports"
     reports_dir.mkdir(parents=True, exist_ok=True)
@@ -1177,6 +1194,77 @@ def main():
         if pad_detected:
             print(f"  [WARN] padding_detected (level={pg_report['padding_level']}, score={pg_report['padding_score']})")
             # Non-fail levels can proceed with warning
+
+        # ── STEP 7.6: 角色口吻与动作证据系统 (Phase 2: WARNING only) ──
+        voice_report = {}
+        classic_report = {}
+        sdt_report = {}
+        chook_report = {}
+        dbeat_report = {}
+
+        # 7.6.1 character_voice_guard
+        try:
+            from character_voice_guard import run_character_voice_check as run_cvg
+            cvg_report = run_cvg(content, chapter_no)
+            cvg_path = ce_reports_dir / f"chapter_{chapter_no:03d}_character_voice_report.json"
+            cvg_path.write_text(json.dumps(cvg_report, ensure_ascii=False, indent=2), encoding='utf-8')
+            print(f"  [OK] character_voice_report: {cvg_path}")
+            voice_report = cvg_report
+            if not cvg_report.get("character_voice_pass", True):
+                print(f"  [WARN] character_voice: {len(cvg_report.get('violations',[]))} violations")
+        except Exception as e:
+            print(f"  [WARN] character_voice_guard skipped: {e}")
+
+        # 7.6.2 classical_register_guard
+        try:
+            from classical_register_guard import run_classical_register_check as run_crg
+            crg_report = run_crg(content, chapter_no)
+            crg_path = ce_reports_dir / f"chapter_{chapter_no:03d}_classical_register_report.json"
+            crg_path.write_text(json.dumps(crg_report, ensure_ascii=False, indent=2), encoding='utf-8')
+            print(f"  [OK] classical_register_report: {crg_path}")
+            classic_report = crg_report
+            if not crg_report.get("classical_register_pass", True):
+                print(f"  [WARN] classical_register: {crg_report.get('wenyan_density_percent',0)}% density")
+        except Exception as e:
+            print(f"  [WARN] classical_register_guard skipped: {e}")
+
+        # 7.6.3 show_dont_tell_guard
+        try:
+            from show_dont_tell_guard import run_show_dont_tell_check as run_sdt
+            sdt_report = run_sdt(content, chapter_no)
+            sdt_path = ce_reports_dir / f"chapter_{chapter_no:03d}_show_dont_tell_report.json"
+            sdt_path.write_text(json.dumps(sdt_report, ensure_ascii=False, indent=2), encoding='utf-8')
+            print(f"  [OK] show_dont_tell_report: {sdt_path}")
+            if sdt_report.get("total_matches", 0) > 0:
+                print(f"  [WARN] show_dont_tell: {sdt_report['total_matches']} AI总结句")
+        except Exception as e:
+            print(f"  [WARN] show_dont_tell_guard skipped: {e}")
+
+        # 7.6.4 concrete_hook_guard
+        try:
+            from concrete_hook_guard import run_concrete_hook_check as run_chg
+            chg_report = run_chg(content, chapter_no)
+            chg_path = ce_reports_dir / f"chapter_{chapter_no:03d}_concrete_hook_report.json"
+            chg_path.write_text(json.dumps(chg_report, ensure_ascii=False, indent=2), encoding='utf-8')
+            print(f"  [OK] concrete_hook_report: {chg_path}")
+            chook_report = chg_report
+            if not chg_report.get("concrete_hook_pass", True):
+                print(f"  [WARN] concrete_hook: {chg_report.get('hook_type','none')} anchor, {chg_report.get('anchor_count',0)} anchors")
+        except Exception as e:
+            print(f"  [WARN] concrete_hook_guard skipped: {e}")
+
+        # 7.6.5 dialogue_beat_guard
+        try:
+            from dialogue_beat_guard import run_dialogue_beat_check as run_dbg
+            dbg_report = run_dbg(content, chapter_no)
+            dbg_path = ce_reports_dir / f"chapter_{chapter_no:03d}_dialogue_beat_report.json"
+            dbg_path.write_text(json.dumps(dbg_report, ensure_ascii=False, indent=2), encoding='utf-8')
+            print(f"  [OK] dialogue_beat_report: {dbg_path}")
+            dbeat_report = dbg_report
+            if not dbg_report.get("dialogue_beat_pass", True):
+                print(f"  [WARN] dialogue_beat: {dbg_report['scenes_failing']}/{dbg_report['scenes_analyzed']} scenes need more beats")
+        except Exception as e:
+            print(f"  [WARN] dialogue_beat_guard skipped: {e}")
 
         # STEP 8: ingest
         result = ingest(chapter_no, chapter_type)

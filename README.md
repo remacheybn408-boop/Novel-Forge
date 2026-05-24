@@ -62,9 +62,9 @@ novel-pipeline-write-engine/
 │
 ├── examples/
 │   └── demo_novel/
-│       └── outline_skeleton.json    ← 完整 demo：25 章标题骨架
+│   └── outline_skeleton.json    ← 完整 demo：25 章标题骨架
 │
-├── tests/                           ← 21 个测试
+├── tests/                           ← 31 个测试
 ├── docs/                            ← 架构 / 规范 / 文档
 │   └── skills/
 │       ├── novel_factory_router_SKILL.md
@@ -95,7 +95,17 @@ novel-pipeline-write-engine/
 | `import_outline_skeleton.py` | JSON 标题骨架导入（校验 chapter_goal / conflict_point / ending_hook_direction） |
 | `agent_run_guard.py` | chapter_run_report.json 自检（PASS/FAIL） |
 | `hallucination_guard.py` | 幻觉拦截：阻止无依据新设定/矛盾/遗忘状态 |
+| `continuity_evidence_guard.py` | 章章连续证据：hard/soft 状态分层 + 钩子分层 + 任务信号检测 |
+| `canon_evidence_guard.py` | 来源证据：每个硬事实必须绑定来源 |
+| `scene_delta_guard.py` | 场景推进证据：连续叙事支持 narrative beat 拆分 |
+| `padding_guard.py` | 反水文：凑字/重复/灌水检测 |
 | `backup_db.py` | 一键备份 SQLite 数据库（online backup） |
+| `guard_contract_utils.py` | Guard 接口契约：统一 guard_passed() / normalize_chapter_no() |
+| `character_voice_guard.py` | [新] 角色口吻：方言/文言浓度 + 禁用词检测 (Phase 2: WARNING) |
+| `classical_register_guard.py` | [新] 文言语体：古文块后反应检测 + 可读性风险 (Phase 2: WARNING) |
+| `show_dont_tell_guard.py` | [新] AI 总结句：30+ 禁用模式检测 (Phase 2: WARNING) |
+| `concrete_hook_guard.py` | [新] 具体钩子：结尾必须绑定 object/person/location/relationship/cost |
+| `dialogue_beat_guard.py` | [新] 对白节拍：每场景 ≥2 项动作/停顿/误会/代价 (Phase 2: WARNING) |
 | `novel_factory_router_SKILL.md` | Agent 模式路由：NOVEL_WRITE_MODE / PLAN_MODE 触发词 + 执行头 |
 | Demo 项目 | `examples/demo_novel/` — 25 章骨架 + README |
 | Skill 文档 | `docs/skills/long_novel_writing_SKILL.md`（通用版） |
@@ -131,6 +141,7 @@ SQLite 记住 → 门禁防偷懒 → 摘要防迷路 → 版本可回滚
 | scene | 场景质量 | ≥ 4 有效场景 |
 | anti_ai | 反 AI 腔（10 项检测） | ≤ 2 轻微 |
 | padding | 反水文 | 阻止凑字/重复/灌水 |
+| voice_guards | 角色口吻+动作证据 (Phase 2: WARNING) | character_voice / classical_register / show_dont_tell / concrete_hook / dialogue_beat |
 | ingest | 入库 + 切片 + FTS + 版本 + 摘要 + 日志 | 失败禁止下一章 |
 
 ---
@@ -154,6 +165,35 @@ SQLite 记住 → 门禁防偷懒 → 摘要防迷路 → 版本可回滚
 - **No previous_tail_used** = 上下文不连续
 - **No volume_bridge_report** = 卷不连续
 - **No execution_receipt** = 执行未证明
+
+---
+
+## v0.3.1 Quality Guard Patch
+
+本补丁在 v0.3.1 证据门禁基础上增加两类能力：
+
+### 1. 误判校准
+
+- **hard_state / soft_state 分层**: 受伤/被困/生死危机 ≠ 普通情绪/地点变化
+- **任务钩子防误触发**: ≥2 信号才算 real_task_hook，排除否定/抽象/已完成/非剧情
+- **连续叙事支持**: scene_delta_guard 不再因 scene_count=1 直接 FAIL，支持 narrative beat 拆分
+- **Guard 接口契约统一**: guard_passed() / normalize_chapter_no() / 统一返回 dict
+
+### 2. 角色口吻与动作证据 (Phase 2: WARNING only)
+
+| 新门禁 | 功能 | 报告文件 |
+|--------|------|----------|
+| `character_voice_guard` | 角色口吻一致性、方言/文言浓度、禁用词 | `character_voice_report.json` |
+| `classical_register_guard` | 文言/古雅语体合理性、可读性风险 | `classical_register_report.json` |
+| `show_dont_tell_guard` | AI 总结句检测（"他终于明白"/"命运的齿轮"/空泛危机） | `show_dont_tell_report.json` |
+| `concrete_hook_guard` | 结尾钩子必须绑定 object/person/location/relationship/cost | `concrete_hook_report.json` |
+| `dialogue_beat_guard` | 重要场景 ≥2 项：动作/停顿/误会/代价 | `dialogue_beat_report.json` |
+
+### 核心原则
+
+> 门禁不能只硬，还要准。角色不能同声，结尾不能空喊，情绪不能只靠总结。
+
+详见 [角色口吻与动作证据系统](docs/character_voice_action_proof_system.md)
 
 ---
 

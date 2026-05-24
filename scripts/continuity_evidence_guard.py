@@ -1,98 +1,231 @@
 #!/usr/bin/env python3
 """
-continuity_evidence_guard.py — 章章连续证据门禁
+continuity_evidence_guard.py — 章章连续证据门禁 v0.3.1-calibrated
 
-证明每一章确实承接了上一章，不只是"感觉接上了"。
-输出 continuity_evidence_report.json，包含 hooks 承接、状态继承、冲突检测。
-
-用法:
-  python scripts/continuity_evidence_guard.py \
-    --chapter-no 5 --content-file chapter_005.txt \
-    --prev-brief chapter_004_brief.json \
-    --chapter-plan chapter_005_plan.json \
-    [--output report.json]
+硬/软状态分层 + 钩子分层 + 任务钩子信号检测 + 任务误触发排除
 """
-
 import re, json, sys, argparse
 from pathlib import Path
 
+# ═══════════════════════════════════════════════════
+# 硬/软状态分类
+# ═══════════════════════════════════════════════════
 
-def extract_ending_hooks(text, end_chars=400):
-    """从上一章结尾提取可能的钩子"""
-    tail = text[-end_chars:] if len(text) > end_chars else text
-    hooks = []
+HARD_INJURY = re.compile(r'(?<!没有)(?<!没)(?<!不)(伤口|流血|骨折|肿|青紫|绷带|包扎|敷药|治疗|养伤|伤势|断臂|残废|濒死|晕倒|眩晕|头晕|昏迷|中毒)')
+HARD_TRAPPED = re.compile(r'(被困|锁住|封住|困在|困入|禁锢|无法离开)')
+HARD_CRITICAL_ITEM = re.compile(r'(止血丸|玉简|令牌|法器|关键丹药|关键证物|关键书信|证物|残片|密钥|卷轴|禁制符|传送符|信物)')
+HARD_CRITICAL_LOCATION = re.compile(r'(时间迟滞区|矿洞深处|阵眼|密室|牢房|战场|危险区域|封印|被困在)')
+HARD_LIFE_DEATH = re.compile(r'(?<!没有)(?<!没)(?<!不)(?<!还未)(?<!尚未)(死亡|濒死|追杀|生死危机|处刑|审判|毙命|绝境|垂死|将死)')
 
-    # 未完成动作
-    action_incomplete = re.findall(r'(正要|准备|打算|决定|即将|就要|刚想|刚准备).{0,15}(?:[。！？\n]|$)', tail)
-    hooks.extend([h.strip() for h in action_incomplete])
+SOFT_TASK = re.compile(r'(任务|安排|要求|普通命令)')
+SOFT_EMOTION = re.compile(r'(犹豫|沉默|焦虑|愤怒|怀疑|动摇|担忧|失望|愧疚|紧张|兴奋|期待)')
+SOFT_LOCATION = re.compile(r'(回到|离开|走进|站在|来到)')
+SOFT_BACKGROUND = re.compile(r'(压力|催促|规矩|管事态度|宗门氛围)')
+SOFT_PLAN = re.compile(r'(打算|准备|计划|想法)')
 
-    # 不确定性结尾（省略号、问句结尾）
-    uncertainty = re.findall(r'[^。！？\n]{10,50}(?:……|\.{3,}|\?|？)\s*$', tail, re.MULTILINE)
-    hooks.extend([u.strip() for u in uncertainty])
+
+def classify_state_markers(text):
+    """提取并分类状态标记为 hard/soft"""
+    tail = text[-500:]
+    result = {
+        "hard_states": {},
+        "soft_states": {},
+    }
+
+    hard = result["hard_states"]
+    m = HARD_INJURY.findall(tail)
+    if m: hard["injury_state"] = list(set(m))
+    m = HARD_TRAPPED.findall(tail)
+    if m: hard["trapped_state"] = list(set(m))
+    m = HARD_CRITICAL_ITEM.findall(tail)
+    if m: hard["critical_item_state"] = list(set(m))
+    m = HARD_CRITICAL_LOCATION.findall(tail)
+    if m: hard["critical_location_state"] = list(set(m))
+    m = HARD_LIFE_DEATH.findall(tail)
+    if m: hard["life_death_state"] = list(set(m))
+
+    soft = result["soft_states"]
+    m = SOFT_TASK.findall(tail)
+    if m: soft["task_state"] = list(set(m))
+    m = SOFT_EMOTION.findall(tail)
+    if m: soft["emotion_state"] = list(set(m))
+    m = SOFT_LOCATION.findall(tail)
+    if m: soft["location_state"] = list(set(m))
+    m = SOFT_BACKGROUND.findall(tail)
+    if m: soft["background_state"] = list(set(m))
+    m = SOFT_PLAN.findall(tail)
+    if m: soft["plan_state"] = list(set(m))
+
+    return result
+
+
+def check_state_inheritance(classified_markers, content_start):
+    """检查硬状态和软状态的继承情况"""
+    start = content_start[:500]
+    hard_forgotten = []
+    soft_forgotten = []
+
+    for states_dict, target_list in [
+        (classified_markers["hard_states"], hard_forgotten),
+        (classified_markers["soft_states"], soft_forgotten),
+    ]:
+        for category, markers_list in states_dict.items():
+            for m in markers_list:
+                if m not in start:
+                    target_list.append({"category": category, "marker": m})
+
+    return hard_forgotten, soft_forgotten
+
+
+# ═══════════════════════════════════════════════════
+# 钩子分层
+# ═══════════════════════════════════════════════════
+
+def extract_ending_hooks(tail, end_chars=400):
+    """从上一章结尾提取钩子，返回 (hard_hooks, soft_hooks)"""
+    text = tail[-end_chars:] if len(tail) > end_chars else tail
+    hard = []
+    soft = []
+
+    # ── 软钩子：未完成动作（太常见，不强制承接）──
+    action_incomplete = re.findall(r'(正要|准备|打算|决定|即将|就要|刚想|刚准备).{0,15}(?:[。！？\n]|$)', text)
+    for h in action_incomplete:
+        soft.append(("action_incomplete", h.strip()))
+
+    # 不确定性结尾（省略号/问句结尾 → 悬念）
+    uncertainty = re.findall(r'[^。！？\n]{10,50}(?:……|\.{3,}|\?|？)\s*$', text, re.MULTILINE)
+    for h in uncertainty:
+        hard.append(("uncertainty_ending", h.strip()))
 
     # 新发现/新线索
-    discoveries = re.findall(r'(发现|察觉|注意|看出|感觉到|意识到|感觉到).{0,20}(?:了|到|出)', tail)
-    hooks.extend([d.strip() for d in discoveries])
+    discoveries = re.findall(r'(发现|察觉|注意|看出|感觉到|意识到).{0,20}(?:了|到|出)', text)
+    for h in discoveries:
+        hard.append(("discovery", h.strip()))
 
-    # 人物状态变化标记
-    injuries = re.findall(r'(受伤|流血|伤口|疼痛|晕|昏迷|中毒|发热|发冷|虚弱|透支)', tail)
+    # 人物受伤状态
+    injuries = HARD_INJURY.findall(text)
     if injuries:
-        hooks.append(f"人物状态: {', '.join(set(injuries))}")
+        hard.append(("character_injury", f"人物状态: {', '.join(set(injuries))}"))
 
-    # 地点/物品变化
-    location_changes = re.findall(r'(离开|进入|来到|回到|走到|跑向|飞向).{0,10}(?:了|的)', tail)
-    if location_changes:
-        hooks.append(f"地点转移: {location_changes[0]}")
+    # 生死危机
+    life_death = HARD_LIFE_DEATH.findall(text)
+    if life_death:
+        hard.append(("life_death", f"生死危机: {', '.join(set(life_death))}"))
 
-    return list(set(hooks))  # deduplicate
+    # 被困/禁锢
+    trapped = HARD_TRAPPED.findall(text)
+    if trapped:
+        hard.append(("trapped_state", f"被困状态: {', '.join(set(trapped))}"))
 
+    # 关键物品出现
+    critical_items = HARD_CRITICAL_ITEM.findall(text)
+    if critical_items:
+        hard.append(("critical_item", f"关键物品: {', '.join(set(critical_items))}"))
+
+    # ── 软钩子 ──
+    # 普通情绪变化
+    emotions = SOFT_EMOTION.findall(text)
+    if emotions:
+        soft.append(("emotion", f"情绪: {', '.join(set(emotions))}"))
+
+    # 普通计划/打算
+    plans = SOFT_PLAN.findall(text)
+    if plans:
+        soft.append(("plan", f"计划: {', '.join(set(plans))}"))
+
+    # ── 任务钩子：必须通过信号检测 ──
+    task_hooks = extract_task_hooks(text)
+    hard.extend(task_hooks)
+
+    return hard, soft
+
+
+# ═══════════════════════════════════════════════════
+# 任务钩子信号检测
+# ═══════════════════════════════════════════════════
+
+TASK_KEYWORDS = re.compile(r'(任务|安排|吩咐|命令|交代|约定|承诺|限期|必须|要求)')
+SIGNAL_EXECUTOR = re.compile(r'(男主|他|她|你|弟子|杂役|众人|管事|师兄|周|林|沈|顾|韩|赵)')
+SIGNAL_ACTION = re.compile(r'(去|查|找|送|拿|守|交|还|见|报|采|挖|测|验|带|护|杀|救|完成|处理|搬|清|修|炼)')
+SIGNAL_DEADLINE = re.compile(r'(明日|今夜|三日内|之前|天亮前|午时|下次|立刻|马上|今日|今晚|明天|天亮)')
+SIGNAL_SOURCE = re.compile(r'(管事|师兄|长老|掌柜|宗门|仙盟|师父|命令|吩咐|交代|执事)')
+SIGNAL_CONSEQUENCE = re.compile(r'(否则|不然|违令|罚|死|扣|逐出|问罪|责罚|降等)')
+
+# 任务误触发排除
+TASK_FALSE_POSITIVE = re.compile(
+    r'(不是任务|不算任务|没有任务|任务已经结束|安排已经废了'
+    r'|任务这个词|所谓任务|这个安排|安排得很密|任务感'
+    r'|任务像|任务似|安排像|安排似'
+    r'|任务完成|安排结束|已经交差|事情已经了结'
+    r'|写作任务|系统任务|本章任务|任务卡)'
+)
+
+
+def is_task_false_positive(sentence):
+    """检查是否任务误触发"""
+    return bool(TASK_FALSE_POSITIVE.search(sentence))
+
+
+def extract_task_hooks(text):
+    """提取真实任务钩子：需要 ≥2 信号"""
+    hooks = []
+    sentences = re.split(r'[。！？\n]', text)
+    for sent in sentences:
+        sent = sent.strip()
+        if not sent or len(sent) < 10:
+            continue
+        if not TASK_KEYWORDS.search(sent):
+            continue
+        if is_task_false_positive(sent):
+            continue
+
+        signals = 0
+        if SIGNAL_EXECUTOR.search(sent): signals += 1
+        if SIGNAL_ACTION.search(sent): signals += 1
+        if SIGNAL_DEADLINE.search(sent): signals += 1
+        if SIGNAL_SOURCE.search(sent): signals += 1
+        if SIGNAL_CONSEQUENCE.search(sent): signals += 1
+
+        if signals >= 2:
+            hooks.append(("real_task", sent[:80]))
+
+    return hooks
+
+
+# ═══════════════════════════════════════════════════
+# 钩子承接检查
+# ═══════════════════════════════════════════════════
 
 def check_hook_acknowledgment(hooks, content_start):
-    """检查当前章开头是否接住了上一章的钩子"""
+    """检查钩子承接。hooks 格式: [(type, text), ...]"""
     start = content_start[:600] if len(content_start) > 600 else content_start
     acknowledged = []
     missing = []
 
-    for hook in hooks:
-        # 提取钩子中的关键词
-        keywords = re.findall(r'[\u4e00-\u9fff]{2,4}', hook)
+    for hook_type, hook_text in hooks:
+        keywords = re.findall(r'[\u4e00-\u9fff]{2,4}', hook_text)
         found = any(kw in start for kw in keywords)
         if found:
-            acknowledged.append(hook[:60])
+            acknowledged.append((hook_type, hook_text[:60]))
         else:
-            missing.append(hook[:60])
+            missing.append((hook_type, hook_text[:60]))
 
     return acknowledged, missing
 
 
-def extract_state_markers(text):
-    """提取人物状态标记"""
-    markers = {
-        "injuries": re.findall(r'(受伤|伤口|流血|骨折|肿|青紫|绷带|包扎|敷药|治疗|养伤|伤势)', text[-500:]),
-        "items": re.findall(r'(携带|拿着|背着|带着|握着|攥着|揣着|腰间|怀里|储物袋|乾坤袋)', text[-500:]),
-        "tasks": re.findall(r'(任务|命令|交代|嘱托|吩咐|安排|要求.{1,5}做)', text[-500:]),
-        "emotions": re.findall(r'(愤怒|恐惧|悲伤|担忧|焦虑|紧张|兴奋|期待|失望|愧疚)', text[-500:]),
-    }
-    return markers
-
-
-def check_state_inheritance(prev_markers, content_start):
-    """检查状态是否被继承"""
-    start = content_start[:500]
-    forgotten = []
-
-    for category, markers_list in prev_markers.items():
-        for m in set(markers_list):
-            if m not in start:
-                forgotten.append({"category": category, "marker": m})
-
-    return forgotten
-
+# ═══════════════════════════════════════════════════
+# 主入口
+# ═══════════════════════════════════════════════════
 
 def run_continuity_evidence_check(chapter_no, content, prev_chapter_no=None,
                                    prev_tail="", prev_brief=None,
                                    chapter_plan=None, volume_plan=None):
-    """主入口：运行连续性证据检查"""
+    """主入口"""
+
+    # 规范化 chapter_no
+    if isinstance(chapter_no, str):
+        m = re.search(r'\d+', chapter_no)
+        chapter_no = int(m.group()) if m else chapter_no
 
     prev_chapter_no = prev_chapter_no or (chapter_no - 1)
     prev_brief = prev_brief or {}
@@ -104,102 +237,123 @@ def run_continuity_evidence_check(chapter_no, content, prev_chapter_no=None,
     # ── 第一章特判 ──
     if chapter_no <= 1 or prev_chapter_no < 1:
         return {
+            "status": "PASS",
+            "final_decision": "PASS",
             "chapter_no": chapter_no,
             "previous_chapter_no": None,
             "previous_tail_used": None,
-            "recent_summaries_used": True,
-            "character_states_used": True,
-            "plot_threads_used": True,
-            "reader_promises_used": True,
-            "volume_context_used": True,
             "previous_ending_state": "N/A (第一章)",
-            "required_hooks_from_previous": [],
-            "hooks_acknowledged_in_current_chapter": [],
-            "missing_hooks": [],
-            "forgotten_states": [],
+            "hard_required_hooks": [],
+            "soft_required_hooks": [],
+            "hard_missing_hooks": [],
+            "soft_missing_hooks": [],
+            "hard_forgotten_states": [],
+            "soft_forgotten_states": [],
             "continuity_conflicts": [],
-            "previous_chapter_link_passed": True,
             "continuity_evidence_score": 1.0,
-            "final_decision": "PASS"
+            "previous_chapter_link_passed": True,
+            "warnings": [],
         }
 
-    # ── 上一章结尾状态 ──
+    # ── 上一章结尾 ──
     prev_tail_text = prev_tail or prev_brief.get("ending_state", "")
-    prev_chapter_zero = prev_chapter_no is not None
     previous_tail_used = bool(prev_tail_text)
 
-    # ── 从上一章提取钩子 ──
-    required_hooks = extract_ending_hooks(prev_tail_text) if prev_tail_text else []
+    # ── 提取钩子（分层）──
+    hard_hooks, soft_hooks = extract_ending_hooks(prev_tail_text) if prev_tail_text else ([], [])
 
-    # 也从 brief 提取
-    brief_hooks = prev_brief.get("next_chapter_hooks", "")
-    if brief_hooks:
-        required_hooks.append(brief_hooks[:120])
+    # ── 检查硬钩子承接 ──
+    _, hard_missing = check_hook_acknowledgment(hard_hooks, content_start)
 
-    # ── 检查钩子承接 ──
-    acknowledged, missing = check_hook_acknowledgment(required_hooks, content_start)
+    # ── 检查软钩子 ──
+    _, soft_missing = check_hook_acknowledgment(soft_hooks, content_start)
 
-    # ── 检查状态继承 ──
-    prev_markers = extract_state_markers(prev_tail_text) if prev_tail_text else {}
-    forgotten_states = check_state_inheritance(prev_markers, content_start)
-
-    # ── 连续性冲突 ──
+    # ── 状态继承（分层）──
+    classified = classify_state_markers(prev_tail_text) if prev_tail_text else {"hard_states": {}, "soft_states": {}}
+    hard_forgotten, soft_forgotten = check_state_inheritance(classified, content_start)
+    # ── 连续性冲突（地点）──
+    # 仅当章节开头场景与上一章结尾场景关键词完全不重叠且上一章结尾被困/锁定
+    # 时才标记冲突。普通转场（院→林等）不报。
     conflicts = []
-    # 检查章节开头的场景是否与上一章结尾衔接
     if prev_tail_text and content_start:
-        prev_loc = re.findall(r'(院|洞|室|殿|阁|楼|厅|堂|巷|街|道|山|林|矿|坊|市|城|镇|村)', prev_tail_text[-200:])
-        curr_loc = re.findall(r'(院|洞|室|殿|阁|楼|厅|堂|巷|街|道|山|林|矿|坊|市|城|镇|村)', content_start[:200])
-        if prev_loc and curr_loc and not (set(prev_loc) & set(curr_loc)):
-            conflicts.append(f"地点不连续: 上章={prev_loc}, 本章={curr_loc}")
-
-    # ── 计算分数 ──
-    total_hooks = len(required_hooks)
-    missing_count = len(missing)
-    forgotten_count = len(forgotten_states)
-    conflict_count = len(conflicts)
-
-    if total_hooks > 0:
-        hook_score = (total_hooks - missing_count) / total_hooks
-    else:
-        hook_score = 1.0  # 没有明显钩子时不算失败
-
-    state_score = 1.0
-    total_markers = sum(len(v) for v in prev_markers.values())
-    if total_markers > 0:
-        state_score = 1.0 - (forgotten_count / total_markers)
-
-    evidence_score = (hook_score * 0.5 + state_score * 0.3 + (1.0 if not conflicts else 0.5) * 0.2)
-    evidence_score = round(max(0.0, min(1.0, evidence_score)), 2)
+        prev_loc = set(re.findall(r'(院|洞|室|殿|阁|楼|厅|堂|巷|街|道|山|林|矿|坊|市|城|镇|村)', prev_tail_text[-200:]))
+        curr_loc = set(re.findall(r'(院|洞|室|殿|阁|楼|厅|堂|巷|街|道|山|林|矿|坊|市|城|镇|村)', content_start[:200]))
+        prev_trapped = HARD_TRAPPED.search(prev_tail_text[-200:])
+        if prev_loc and curr_loc and not (prev_loc & curr_loc) and prev_trapped:
+            conflicts.append(f"被困状态下地点跳转: 上章={list(prev_loc)}, 本章={list(curr_loc)}")
 
     # ── 裁决 ──
+    hard_missing_count = len(hard_missing)
+    hard_forgotten_count = len(hard_forgotten)
+    soft_forgotten_count = len(soft_forgotten)
+    conflict_count = len(conflicts)
+
+    # 硬状态：零容忍
+    hard_state_pass = (hard_forgotten_count == 0)
+
+    # 软状态：允许少量
+    total_soft = sum(len(v) for v in classified["soft_states"].values())
+    max_soft_forgiven = max(2, total_soft // 3) if total_soft > 0 else 0
+    soft_state_pass = (soft_forgotten_count <= max_soft_forgiven)
+
+    # 钩子：硬钩子零容忍
+    hooks_pass = (hard_missing_count == 0)
+
+    # 连续性冲突
+    conflicts_pass = (conflict_count == 0)
+
+    # 综合得分
+    total_hard = len(hard_hooks)
+    hook_score = 1.0 if total_hard == 0 else (total_hard - hard_missing_count) / total_hard
+    total_hard_markers = sum(len(v) for v in classified["hard_states"].values())
+    hard_state_score = 1.0 if total_hard_markers == 0 else (total_hard_markers - hard_forgotten_count) / total_hard_markers
+    evidence_score = round(hook_score * 0.5 + hard_state_score * 0.3 + (1.0 if conflicts_pass else 0.5) * 0.2, 2)
+
     previous_chapter_link_passed = (
         previous_tail_used and
-        missing_count == 0 and
-        forgotten_count == 0 and
-        conflict_count == 0 and
-        evidence_score >= 0.8
+        hooks_pass and
+        hard_state_pass and
+        conflicts_pass and
+        evidence_score >= 0.65
     )
 
     final_decision = "PASS" if previous_chapter_link_passed else "FAIL"
 
+    # ── Warnings ──
+    warnings = []
+    if not soft_state_pass:
+        warnings.append(f"软状态遗忘 {soft_forgotten_count} 项（允许 ≤{max_soft_forgiven}）")
+    if soft_missing:
+        warnings.append(f"软钩子未承接: {len(soft_missing)} 项")
+    if evidence_score < 0.8:
+        warnings.append(f"连续性得分偏低 ({evidence_score})")
+
+    # ── 构建报告 ──
+    hard_missing_str = [f"{t}:{h}" for t, h in hard_missing]
+    soft_missing_str = [f"{t}:{h}" for t, h in soft_missing]
+    hard_forgotten_str = [f"{f['category']}:{f['marker']}" for f in hard_forgotten]
+    soft_forgotten_str = [f"{f['category']}:{f['marker']}" for f in soft_forgotten]
+    hard_hooks_str = [f"{t}:{h[:60]}" for t, h in hard_hooks]
+
     report = {
+        "status": final_decision,
+        "final_decision": final_decision,
         "chapter_no": chapter_no,
         "previous_chapter_no": prev_chapter_no,
         "previous_tail_used": previous_tail_used,
-        "recent_summaries_used": True,
-        "character_states_used": True,
-        "plot_threads_used": True,
-        "reader_promises_used": True,
-        "volume_context_used": True,
         "previous_ending_state": prev_tail_text[:200] if prev_tail_text else "",
-        "required_hooks_from_previous": required_hooks[:10],
-        "hooks_acknowledged_in_current_chapter": acknowledged[:10],
-        "missing_hooks": missing,
-        "forgotten_states": [f"{f['category']}:{f['marker']}" for f in forgotten_states],
+        "hard_required_hooks": hard_hooks_str[:10],
+        "soft_required_hooks": [f"{t}:{h[:60]}" for t, h in soft_hooks][:10],
+        "hard_missing_hooks": hard_missing_str,
+        "soft_missing_hooks": soft_missing_str,
+        "hard_forgotten_states": hard_forgotten_str,
+        "soft_forgotten_states": soft_forgotten_str,
+        "hard_forgotten_states_count": hard_forgotten_count,
+        "soft_forgotten_states_count": soft_forgotten_count,
         "continuity_conflicts": conflicts,
-        "previous_chapter_link_passed": previous_chapter_link_passed,
         "continuity_evidence_score": evidence_score,
-        "final_decision": final_decision
+        "previous_chapter_link_passed": previous_chapter_link_passed,
+        "warnings": warnings,
     }
 
     return report
@@ -209,10 +363,10 @@ def main():
     parser = argparse.ArgumentParser(description="Continuity Evidence Guard")
     parser.add_argument("--chapter-no", type=int, required=True, help="章节号")
     parser.add_argument("--content-file", required=True, help="章节 TXT 文件")
-    parser.add_argument("--prev-chapter-no", type=int, default=None, help="上一章号(默认: chapter_no-1)")
+    parser.add_argument("--prev-chapter-no", type=int, default=None)
     parser.add_argument("--prev-brief", default=None, help="上一章 brief JSON")
-    parser.add_argument("--chapter-plan", default=None, help="本章 plan JSON")
-    parser.add_argument("--output", default=None, help="输出 report JSON 路径")
+    parser.add_argument("--chapter-plan", default=None)
+    parser.add_argument("--output", default=None)
     args = parser.parse_args()
 
     content = Path(args.content_file).read_text(encoding="utf-8")
@@ -244,9 +398,8 @@ def main():
 
     if report["final_decision"] == "FAIL":
         print(f"\n[FAIL] Continuity evidence check failed")
-        print(f"  missing_hooks: {len(report['missing_hooks'])}")
-        print(f"  forgotten_states: {len(report['forgotten_states'])}")
-        print(f"  conflicts: {len(report['continuity_conflicts'])}")
+        print(f"  hard_missing_hooks: {len(report['hard_missing_hooks'])}")
+        print(f"  hard_forgotten_states: {len(report['hard_forgotten_states'])}")
         print(f"  score: {report['continuity_evidence_score']}")
         sys.exit(1)
     else:

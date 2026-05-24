@@ -46,12 +46,11 @@ class TestContinuityEvidenceFail:
         report = run_continuity_evidence_check(3, content, prev_tail=prev_tail)
         assert report["previous_tail_used"] is True
         # Should have missing hooks since discovery not acknowledged
-        assert len(report["missing_hooks"]) > 0
+        assert len(report["hard_missing_hooks"]) > 0
 
     def test_location_discontinuity(self):
-        """地点不连续"""
-        prev_tail = "他站在矿道最深处，前方已无路可走。身后传来坍塌的声音。"
+        """被困状态下地点跳转"""
+        prev_tail = "他被困在矿道最深处，无法离开。身后传来坍塌的声音。"
         content = "他出现在繁华的坊市中央，周围人来人往，叫卖声不绝。"
         report = run_continuity_evidence_check(4, content, prev_tail=prev_tail)
-        # May flag location conflict
-        assert report["continuity_evidence_score"] < 1.0
+        assert len(report["continuity_conflicts"]) > 0
