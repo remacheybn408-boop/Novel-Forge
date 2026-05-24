@@ -39,3 +39,7 @@ data/
 # Novel content (user's own work)
 novels/
 小说/
+
+tmp/
+*.tmp
+*.log

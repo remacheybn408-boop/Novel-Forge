@@ -774,7 +774,7 @@ def ingest(chapter_no, chapter_type="normal"):
     try:
         cur.execute("INSERT INTO novel_chapter_fts(rowid,title,content,summary) VALUES(?,?,?,?)", (ch_id, title, content, ''))
         for cno, ctext in chunks:
-            cur.execute("INSERT INTO novel_chunk_fts(rowid,content,summary,tags) VALUES(?,?,?,?)", (ch_id*10000+cno, ctext, '', ''))
+            cur.execute("INSERT INTO novel_chunk_fts(rowid,content) VALUES(?,?)", (ch_id*10000+cno, ctext))
     except Exception as e: print(f"  [WARN] FTS: {e}")
 
     # --- chapter_summaries ---
