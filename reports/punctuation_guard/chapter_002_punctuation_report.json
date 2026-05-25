@@ -2,27 +2,27 @@
   "status": "WARNING",
   "score": 96,
   "stats": {
-    "chapter_no": 6,
-    "word_count": 1772,
-    "total_dashes": 18,
-    "dash_pairs": 4,
+    "chapter_no": 2,
+    "word_count": 1581,
+    "total_dashes": 10,
+    "dash_pairs": 2,
     "dash_single": 0,
     "ellipsis_count": 0,
-    "exclamation_count": 0,
-    "paragraphs": 42,
+    "exclamation_count": 3,
+    "paragraphs": 67,
     "dash_classification": {
-      "解释型": 0,
-      "插入型": 2,
+      "解释型": 1,
+      "插入型": 1,
       "悬念型": 3,
-      "对话拖音/喜剧型": 5
+      "对话拖音/喜剧型": 1
     }
   },
   "findings": [
     {
       "level": "WARNING",
       "type": "段落破折号偏多",
-      "message": "第 42 段出现 2 组 '——'，超过 1 组建议上限",
-      "evidence": "——第六章完——",
+      "message": "第 67 段出现 2 组 '——'，超过 1 组建议上限",
+      "evidence": "——第二章完——",
       "suggestion": "每段建议不超过 1 组破折号，避免视觉疲劳"
     }
   ],
@@ -30,7 +30,7 @@
     {
       "level": "WARNING",
       "type": "段落破折号偏多",
-      "message": "第 42 段出现 2 组 '——'，超过 1 组建议上限"
+      "message": "第 67 段出现 2 组 '——'，超过 1 组建议上限"
     }
   ]
 }

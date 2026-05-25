@@ -1,7 +1,7 @@
 {
   "chapter": 1,
   "mode": "light",
-  "overall_score": 0,
+  "overall_score": 13,
   "status": "FAIL",
   "agents": [
     {
@@ -21,49 +21,29 @@
     {
       "agent": "anti_ai_agent",
       "chapter": 1,
-      "score": 0,
-      "status": "PASS",
-      "findings": []
+      "score": 15,
+      "status": "WARNING",
+      "findings": [
+        {
+          "level": "WARN",
+          "message": "硬科普 [HARD_SCIENCE_TERM]: '粒子'",
+          "evidence": "记忆里的一切，他在哪里？他刚才在实验室，粒子对撞机的数据还在屏幕上跳动，然后是一阵刺目的白光——  石槽里的液体灌进鼻腔。他",
+          "suggestion": "修仙文中避免使用现代科学术语",
+          "_agent": "anti_ai_agent"
+        }
+      ]
     },
     {
       "agent": "plot_agent",
       "chapter": 1,
-      "score": 0,
+      "score": 40,
       "status": "FAIL",
       "findings": [
-        {
-          "level": "WARN",
-          "message": "剧情推进不足: 仅检测到0处推进标记",
-          "evidence": "需≥2处",
-          "suggestion": "增加突破/发现/收获/击败等实质性事件",
-          "_agent": "plot_agent"
-        },
-        {
-          "level": "WARN",
-          "message": "冲突/压力不足: 未检测到明显冲突标记",
-          "evidence": "",
-          "suggestion": "增加人际冲突、任务压力或外部威胁",
-          "_agent": "plot_agent"
-        },
         {
           "level": "WARN",
           "message": "爽点缺失: 未检测到打脸/反转/震惊/升级",
           "evidence": "",
           "suggestion": "每章至少1个爽点: 打脸/震惊围观/突破/收获",
-          "_agent": "plot_agent"
-        },
-        {
-          "level": "WARN",
-          "message": "结尾无压力/钩子",
-          "evidence": "结尾600字无转折/悬念/危机信号",
-          "suggestion": "章节结尾应留有悬念或压力, 驱动读者继续阅读",
-          "_agent": "plot_agent"
-        },
-        {
-          "level": "WARN",
-          "message": "章节偏短: 0字",
-          "evidence": "",
-          "suggestion": "建议每章2000-4000字",
           "_agent": "plot_agent"
         }
       ]
@@ -72,52 +52,34 @@
   "chief_editor": {
     "agent": "chief_editor",
     "chapter": 1,
-    "score": 35,
+    "score": 37,
     "status": "FAIL",
     "findings": [
       {
         "level": "FAIL",
-        "message": "审稿团汇总: 3 PASS / 0 WARNING / 1 FAIL",
-        "evidence": "总评分: 35/100",
-        "suggestion": "建议修复5项; 建议大幅修订后再提交"
+        "message": "审稿团汇总: 2 PASS / 1 WARNING / 1 FAIL",
+        "evidence": "总评分: 37/100",
+        "suggestion": "建议修复2项; 建议大幅修订后再提交"
       },
       {
         "level": "WARN",
-        "message": "[should_fix] (plot_agent) 剧情推进不足: 仅检测到0处推进标记",
-        "evidence": "需≥2处",
-        "suggestion": "增加突破/发现/收获/击败等实质性事件"
-      },
-      {
-        "level": "WARN",
-        "message": "[should_fix] (plot_agent) 冲突/压力不足: 未检测到明显冲突标记",
-        "evidence": "",
-        "suggestion": "增加人际冲突、任务压力或外部威胁"
+        "message": "[should_fix] (anti_ai_agent) 硬科普 [HARD_SCIENCE_TERM]: '粒子'",
+        "evidence": "记忆里的一切，他在哪里？他刚才在实验室，粒子对撞机的数据还在屏幕上跳动，然后是一阵刺目的白光——  石槽里的液体灌进鼻腔。他",
+        "suggestion": "修仙文中避免使用现代科学术语"
       },
       {
         "level": "WARN",
         "message": "[should_fix] (plot_agent) 爽点缺失: 未检测到打脸/反转/震惊/升级",
         "evidence": "",
         "suggestion": "每章至少1个爽点: 打脸/震惊围观/突破/收获"
-      },
-      {
-        "level": "WARN",
-        "message": "[should_fix] (plot_agent) 结尾无压力/钩子",
-        "evidence": "结尾600字无转折/悬念/危机信号",
-        "suggestion": "章节结尾应留有悬念或压力, 驱动读者继续阅读"
-      },
-      {
-        "level": "WARN",
-        "message": "[should_fix] (plot_agent) 章节偏短: 0字",
-        "evidence": "",
-        "suggestion": "建议每章2000-4000字"
       }
     ],
     "summary": {
-      "pass_count": 3,
-      "warn_count": 0,
+      "pass_count": 2,
+      "warn_count": 1,
       "fail_count": 1,
       "must_fix_count": 0,
-      "should_fix_count": 5,
+      "should_fix_count": 2,
       "keep_count": 0
     },
     "agent_scores": {
@@ -132,59 +94,41 @@
         "finding_count": 0
       },
       "anti_ai_agent": {
-        "score": 0,
-        "status": "PASS",
-        "finding_count": 0
+        "score": 15,
+        "status": "WARNING",
+        "finding_count": 1
       },
       "plot_agent": {
-        "score": 0,
+        "score": 40,
         "status": "FAIL",
-        "finding_count": 5
+        "finding_count": 1
       }
     },
     "must_fix": [],
     "should_fix": [
       {
         "level": "WARN",
-        "message": "剧情推进不足: 仅检测到0处推进标记",
-        "evidence": "需≥2处",
-        "suggestion": "增加突破/发现/收获/击败等实质性事件"
-      },
-      {
-        "level": "WARN",
-        "message": "冲突/压力不足: 未检测到明显冲突标记",
-        "evidence": "",
-        "suggestion": "增加人际冲突、任务压力或外部威胁"
+        "message": "硬科普 [HARD_SCIENCE_TERM]: '粒子'",
+        "evidence": "记忆里的一切，他在哪里？他刚才在实验室，粒子对撞机的数据还在屏幕上跳动，然后是一阵刺目的白光——  石槽里的液体灌进鼻腔。他",
+        "suggestion": "修仙文中避免使用现代科学术语"
       },
       {
         "level": "WARN",
         "message": "爽点缺失: 未检测到打脸/反转/震惊/升级",
         "evidence": "",
         "suggestion": "每章至少1个爽点: 打脸/震惊围观/突破/收获"
-      },
-      {
-        "level": "WARN",
-        "message": "结尾无压力/钩子",
-        "evidence": "结尾600字无转折/悬念/危机信号",
-        "suggestion": "章节结尾应留有悬念或压力, 驱动读者继续阅读"
-      },
-      {
-        "level": "WARN",
-        "message": "章节偏短: 0字",
-        "evidence": "",
-        "suggestion": "建议每章2000-4000字"
       }
     ],
     "keep": []
   },
   "summary": {
     "total_agents": 4,
-    "pass_count": 3,
-    "warn_count": 0,
+    "pass_count": 2,
+    "warn_count": 1,
     "fail_count": 1,
     "must_fix_count": 0,
-    "should_fix_count": 5
+    "should_fix_count": 2
   },
-  "timestamp": "2026-05-25T16:23:19",
+  "timestamp": "2026-05-25T17:18:29",
   "version": "0.5.5"
 }

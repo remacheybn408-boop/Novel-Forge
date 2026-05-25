@@ -68,7 +68,7 @@ MODE_GUARDS = {
         "padding_guard", "anti_ai_guard",
         "show_dont_tell_guard", "character_voice_guard",
         "concrete_anchor_guard", "scene_causality_guard",
-        "dialogue_naturalness_guard", "punctuation_guard",
+        "dialogue_naturalness_guard",
     ],
     "submission": [
         "continuity_evidence_guard", "canon_evidence_guard",

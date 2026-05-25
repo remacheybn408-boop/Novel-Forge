@@ -391,6 +391,16 @@ def cmd_init():
     return 0
 
 
+def _get_default_slug(cfg_path):
+    """Resolve default novel slug from config.json."""
+    try:
+        import json as _json
+        _cfg = _json.load(open(cfg_path, encoding="utf-8"))
+        return _cfg.get("default_novel_slug", "demo_novel")
+    except Exception:
+        return "demo_novel"
+
+
 def cmd_pre(chapter_no: str = None, slug: str = None, volume_no: str = None):
     """Run pre-write gate for a chapter."""
     cfg = PROJECT_ROOT / "config.json"
@@ -398,11 +408,11 @@ def cmd_pre(chapter_no: str = None, slug: str = None, volume_no: str = None):
         print("Usage: python novel.py pre <chapter_no> [--slug <slug>] [--volume <n>]")
         return 1
     print(f"  Running pre-write gate for chapter {chapter_no}...")
+    slug = slug or _get_default_slug(cfg)
     try:
         import subprocess
         cmd = [sys.executable, str(SCRIPTS_DIR / "chapter_pipeline.py"), "pre", str(chapter_no),
-               "--config", str(cfg)]
-        if slug: cmd.extend(["--novel-slug", slug])
+               "--config", str(cfg), "--novel-slug", slug]
         if volume_no: cmd.extend(["--volume-no", str(volume_no)])
         result = subprocess.run(cmd, cwd=str(PROJECT_ROOT), timeout=120)
         return result.returncode
@@ -418,11 +428,11 @@ def cmd_post(chapter_no: str = None, slug: str = None, volume_no: str = None):
         print("Usage: python novel.py post <chapter_no> [--slug <slug>] [--volume <n>]")
         return 1
     print(f"  Running post-write guards for chapter {chapter_no}...")
+    slug = slug or _get_default_slug(cfg)
     try:
         import subprocess
         cmd = [sys.executable, str(SCRIPTS_DIR / "chapter_pipeline.py"), "post", str(chapter_no),
-               "--config", str(cfg)]
-        if slug: cmd.extend(["--novel-slug", slug])
+               "--config", str(cfg), "--novel-slug", slug]
         if volume_no: cmd.extend(["--volume-no", str(volume_no)])
         result = subprocess.run(cmd, cwd=str(PROJECT_ROOT), timeout=300)
         return result.returncode
@@ -438,11 +448,11 @@ def cmd_review(chapter_no: str = None, slug: str = None, volume_no: str = None):
         print("Usage: python novel.py review <chapter_no> [--slug <slug>] [--volume <n>]")
         return 1
     print(f"  Running review for chapter {chapter_no}...")
+    slug = slug or _get_default_slug(cfg)
     try:
         import subprocess
         cmd = [sys.executable, str(SCRIPTS_DIR / "chapter_pipeline.py"), "review", str(chapter_no),
-               "--config", str(cfg)]
-        if slug: cmd.extend(["--novel-slug", slug])
+               "--config", str(cfg), "--novel-slug", slug]
         if volume_no: cmd.extend(["--volume-no", str(volume_no)])
         result = subprocess.run(cmd, cwd=str(PROJECT_ROOT), timeout=300)
         return result.returncode
@@ -488,7 +498,7 @@ def cmd_agents(args):
             _cfg = _json.load(open(cfg_path, encoding="utf-8"))
         slug = getattr(args, "slug", None) or _cfg.get("default_novel_slug", "demo_novel")
         novels_root = _cfg.get("novels_root", str(PROJECT_ROOT / "novels"))
-        ch_dir = Path(novels_root) / slug / "第01卷"
+        ch_dir = Path(novels_root) / "第01卷"
         candidates = list(ch_dir.glob(f"第{chapter_no}章*.txt"))
         if not candidates:
             print(f"[WARN] No chapter file found for chapter {chapter_no} in {ch_dir}")
@@ -520,10 +530,17 @@ def cmd_rag(args):
     if action == "status":
         print("RAG Status:")
         try:
-            from scripts.rag.rag_config import RAGConfig
-            cfg = RAGConfig()
-            print(f"  Mode: {cfg.get('mode', 'fts5')}")
-            print(f"  Vector: {'available' if cfg.vector_available() else 'unavailable (fallback to FTS5)'}")
+            from scripts.rag.rag_config import load_rag_config, get_rag_mode
+            cfg = load_rag_config()
+            mode = get_rag_mode(cfg)
+            # Vector available if sentence_transformers is installed
+            try:
+                import sentence_transformers
+                vector_ok = True
+            except ImportError:
+                vector_ok = False
+            print(f"  Mode: {mode}")
+            print(f"  Vector: {'available' if vector_ok else 'unavailable (fallback to FTS5)'}")
         except Exception as e:
             print(f"  FTS5: available (default)")
             print(f"  Vector: unavailable ({e})")
