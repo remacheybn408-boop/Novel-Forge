@@ -1319,6 +1319,22 @@ def main():
                 failed = orch_report.get("failed_guards", orch_report.get("executed_guards", []))
                 print(f"  [WARN] {orch_report['fail_count']} guard(s) FAIL (level 1/2) — ingest继续但请复查")
 
+            # ── STEP 7.7: Punctuation Guard ──
+            try:
+                from guards.punctuation_guard import run_punctuation_check
+                punct = run_punctuation_check(content, chapter_no)
+                punct_status = punct["status"]
+                dash_pairs = punct["stats"]["dash_pairs"]
+                dash_per_kw = dash_pairs * 1000 / max(punct["stats"]["word_count"], 1)
+                if punct_status == "FAIL":
+                    print(f"  ⚠️ 标点节奏: FAIL ({dash_pairs}组——, {dash_per_kw:.1f}/千字)")
+                elif punct_status == "WARNING":
+                    print(f"  ⚠️ 标点节奏: WARN ({dash_pairs}组——, {dash_per_kw:.1f}/千字)")
+                else:
+                    print(f"  ✅ 标点节奏: PASS ({dash_pairs}组——)")
+            except Exception as e:
+                pass  # punctuation guard is optional
+
             # ── 去重 + Top 5 修改任务 ──
             if quality_policy.get("deduplicate_warnings", True):
                 from report_deduplicator import deduplicate_warnings, get_top_revision_tasks
