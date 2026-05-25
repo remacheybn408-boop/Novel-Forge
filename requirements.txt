@@ -1,0 +1,4 @@
+# Novel Pipeline - Write Engine v0.5.0
+# Core dependencies (stdlib-only for guards; extras for YAML and test)
+pytest>=7.0
+pyyaml>=6.0

@@ -1,10 +1,10 @@
-# Novel Pipeline - Write Engine v0.4.5
+# Novel Pipeline - Write Engine v0.5.0
 
-[![Test](https://github.com/remacheybn408-boop/novel-pipeline-write-engine/actions/workflows/test.yml/badge.svg?branch=v0.4.5)](https://github.com/remacheybn408-boop/novel-pipeline-write-engine/actions/workflows/test.yml?query=branch%3Av0.4.5)
+[![Test](https://github.com/remacheybn408-boop/novel-pipeline-write-engine/actions/workflows/test.yml/badge.svg?branch=v0.5.0)](https://github.com/remacheybn408-boop/novel-pipeline-write-engine/actions/workflows/test.yml?query=branch%3Av0.5.0)
 
-AI 长篇小说工程化写作流水线：SQLite 长期记忆 + Guard Registry + 连续性证据 + 防幻觉 + 自动审稿闭环。
+Novel Pipeline Write Engine 是一个轻量小说工程化写作流水线，专注长篇小说的连续性、角色口吻、AI 腔检查、防幻觉、写前任务卡和写后质量报告。
 
-> **当前稳定版：v0.4.5 — Guard Truth Source Fix。** 重点修复 post / orchestrator / CI 的 Guard 结果不一致问题，并增加 FTS5 自愈、叙事化证据识别、门禁统一摘要输出、Voice Memory Stage 1。37 个测试文件，264 个测试用例通过。
+> **当前版本：v0.5.0 — Stable & Easy Mode。** 统一入口 novel.py、健康检查 status、写前任务卡、Voice/Meme Pack 增强、Reader Pull 追读力门禁、HTML 只读报告。48 个测试文件，295 个测试用例通过。
 
 ---
 
@@ -76,6 +76,58 @@ pytest tests/ -v
 
 ---
 
+## Voice Pack 语言资产系统
+
+v0.4.5 提供通用 Voice Pack / Meme Pack 语言资产系统，用于为不同角色类型提供稳定的说话方式、语体、方言、梗使用边界和禁用词。
+
+**核心是通用的，不绑定任何具体小说角色。**
+
+### 特点
+
+- **不绑定角色**：所有 base pack 使用通用角色类型（如 `protagonist_science_monk`），不写死具体角色名
+- **YAML 管理**：纯 YAML 配置文件，零依赖，可被脚本/Agent/任何工具解析
+- **通用类型**：8 种通用角色类型 + 8 种语体 + 5 种方言 + 7 种梗包
+- **禁用梗库**：内置 `forbidden_memes.yaml`，默认禁止高频网络热梗（家人们谁懂啊/尊嘟假嘟/yyds 等）
+- **不依赖 GUI/LLM**：纯配置驱动，不绑定特定前端或模型
+
+## Guard Calibration Loop（校准型混合门禁）
+
+v0.4.5 引入门禁校准循环，在规则门禁之上增加特征提取、风险路由和样本评估，让门禁从"凭感觉调参"升级为"可评估、可校准"。
+
+- **Feature Extractor**：15 项结构化特征（抽象词密度、动作密度、梗密度等）
+- **Risk Router**：6 条路由规则，自动降级误判、升级高风险
+- **Golden Corpus**：40 个标注样本，可量化 precision/recall
+- **Shadow Mode**：新门禁先影子运行，不影响原有结果
+- **默认不依赖 LLM**：Semantic Judge 预留但 mode=off
+
+详见 `docs/guard_calibration_loop.md`
+
+### 目录结构
+
+```
+voice_packs/
+├── base/          ← 通用角色声纹包（9个）
+├── registers/     ← 语体包（8个）
+├── dialects/      ← 方言包（5个）
+├── memes/         ← 梗语言包（7个）
+├── bindings/      ← 角色绑定模板
+└── samples/       ← 好坏示例
+```
+
+核心系统提供通用角色类型绑定模板（`voice_packs/bindings/demo_bindings.yaml`），支持 8 种通用角色类型：
+
+- 理工型主角 · 接地气好兄弟 · 武力型对手 · 工匠型长者
+- 冷契约型反派 · 半文言老祖 · 市井商人 · 动作化旁白
+
+具体小说角色绑定属于 examples，应放在 `examples/novels/<novel_slug>/character_bindings.yaml`，不在 engine core 中。详见 `voice_packs/bindings/demo_bindings.yaml` 和以下文档：
+
+- [Voice Pack 通用资产说明](docs/voice_pack_assets.md)
+- [Meme Pack 梗语言资产](docs/meme_pack_assets.md)
+- [Dialect Pack 方言资产](docs/dialect_pack_assets.md)
+- [角色绑定指南](docs/voice_pack_binding_guide.md)
+
+---
+
 ## 目录结构
 
 ```
@@ -105,7 +157,7 @@ novel-pipeline-write-engine/
 │   ├── demo_chapters/               ← Demo 章节样本
 │   └── demo_reports/                ← Demo 报告样本
 │
-├── tests/                           ← 32 个测试文件，238 个测试用例
+├── tests/                           ← 48 个测试文件，295 个测试用例
 ├── docs/                            ← 架构 / 规范 / 发布说明
 │   ├── releases/                    ← 历史版本发布说明
 │   └── skills/                      ← Agent 写作路由
@@ -177,6 +229,10 @@ next chapter context        ← 自动读取上章 brief，进入下章 pre
 - [拟人审稿质量套件](docs/HUMAN_GRADE_REVISION_SUITE.md)
 - [改稿闭环](docs/REVISION_LOOP.md)
 - [部署指南](docs/setup-guide.md)
+- [Voice Pack 通用资产](docs/voice_pack_assets.md)
+- [Meme Pack 梗语言资产](docs/meme_pack_assets.md)
+- [Dialect Pack 方言资产](docs/dialect_pack_assets.md)
+- [角色绑定指南](docs/voice_pack_binding_guide.md)
 
 ### Agent Skill 文档
 
