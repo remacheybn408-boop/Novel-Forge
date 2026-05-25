@@ -280,23 +280,21 @@ next chapter context        ← 自动读取上章 brief，进入下章 pre
 
 ---
 
-## 与 Webnovel Writer 的区别
+## 特性一览
 
-| 维度 | Novel Pipeline WE | Webnovel Writer |
-|------|-------------------|-----------------|
-| 定位 | 轻量质量流水线 | 完整写作系统 |
-| 入口 | `novel.py` 一个命令 | 多 Agent 调度 |
-| 许可证 | MIT | GPL-3.0 |
-| 依赖 | Python + SQLite，无需 Docker/Node | Docker + Node + npm |
-| 报告 | 纯 HTML，双击即开 | Web Dashboard |
-| 门禁 | 17+ 规则门禁，可校准 | LLM-based review |
-| 多 Agent | v0.5.1+ 预留 | 已实现 |
-| Voice Pack | 41 个 JSON + YAML 声纹包 | 无独立声纹系统 |
-| 学习曲线 | 5 分钟跑通 demo | 需要理解多 Agent 概念 |
-| 适用 | 个人作者、小团队 | 团队协作 |
+| 维度 | Novel Pipeline WE |
+|------|-------------------|
+| 定位 | 轻量小说质量流水线 |
+| 入口 | `novel.py` 一条命令搞定全部流程 |
+| 许可证 | MIT |
+| 依赖 | Python + SQLite，无需 Docker / Node / npm |
+| 报告 | 纯 HTML，双击即开，无 CDN |
+| 门禁 | 17+ 规则门禁，可校准 |
+| Voice Pack | 41 个 JSON + YAML 声纹包，方言/语体/梗/英语全覆盖 |
+| 学习曲线 | 5 分钟跑通 demo |
+| 适用 | 个人作者、小团队 |
 
 本项目的核心哲学：**能简单就不要复杂，能稳定就不要炫技。**
-v0.5.0 没有抄袭 Webnovel Writer 任何源码，两者是独立的项目。
 
 ---
 
