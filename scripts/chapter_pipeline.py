@@ -441,7 +441,7 @@ def continuity_gate(chapter_no, content):
         cur.execute("INSERT INTO continuity_checks(novel_id,chapter_id,check_type,issue,severity,status) VALUES(?, (SELECT id FROM chapters WHERE novel_id=? AND chapter_no=?), 'continuity', ?, ?, ?)",
             (nid, nid, chapter_no, f"得分{score}/15" if score < 15 else "正常", 3 if score < 15 else 1, 'open' if score < 15 else 'resolved'))
     except Exception:
-        pass  # chapter not yet ingested — skip continuity_checks insert
+        pass  # chapter not yet ingested — non-critical
     conn.commit(); conn.close()
 
     if score >= 12: print("  [OK] 通过"); return True
@@ -559,6 +559,14 @@ def anti_ai_style_gate(content):
         "硬科普指标": len(re.findall(r'(公式|定律|方程|定理|热力学|量子力学|相对论)', content)),
         "论文式句子": len(re.findall(r'通过.{5,20}实现了|基于.{5,20}进行了|本质上是|从某种意义上说|事实上', content)),
     }
+
+    # v0.5.1: Reduce false positives for 这意味着 in character analysis
+    # e.g. 罗千钧: "这意味着赵二河提前准备好了材料"
+    analysis_names = r'(罗千钧|林观澜|赵管事|宋炉公|魂主|裴天衡|齐岳|鲁砚山|许铁牛|赵二河|孙白山)'
+    for m in re.finditer(r'这意味着|这说明|这代表', content):
+        ctx = content[max(0, m.start()-120):m.end()]
+        if re.search(analysis_names, ctx):
+            checks['这意味着'] = max(0, checks['这意味着'] - 1)
 
     total = sum(checks.values())
     for label, count in checks.items():
