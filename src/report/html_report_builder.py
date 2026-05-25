@@ -517,7 +517,7 @@ def main():
     )
     parser.add_argument("--config", default=str(DEFAULT_CONFIG), help="Path to config.json")
     parser.add_argument("--novel-slug", default=DEFAULT_SLUG, help="Novel slug")
-    parser.add_argument("--out", default=None, help="Output path (default: reports/index.html)")
+    parser.add_argument("--out", "--output", default=None, help="Output path (default: reports/index.html)")
     args = parser.parse_args()
 
     config = load_config(args.config)

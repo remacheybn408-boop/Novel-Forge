@@ -78,7 +78,9 @@ def run_migrations(conn, migrations):
     return True
 
 
-def init_db(db_path, schema_path, migrations):
+def init_db(db_path, schema_path, migrations=None):
+    if migrations is None:
+        migrations = []
     db_path = Path(db_path)
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
