@@ -1,0 +1,6 @@
+# Vector RAG 可选依赖
+# 安装: pip install -r requirements-rag.txt
+# 不安装时自动降级为纯 FTS5 检索
+
+chromadb>=0.4.0
+sentence-transformers>=2.2.0

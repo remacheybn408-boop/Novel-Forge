@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.5.0 - Stable & Easy Mode (2026-05-25)
+## v0.5.5 - Stable & Easy Mode (2026-05-25)
 
 ### Added
 - 统一命令入口 novel.py（init/demo/status/pre/post/review/report/export）
@@ -17,7 +17,7 @@
 - 多 Agent 预留目录（默认关闭，不影响主流程）
 
 ### Changed
-- README 全面更新到 v0.5.0（重点、快速开始、目录结构、版本历史）
+- README 全面更新到 v0.5.5（重点、快速开始、目录结构、版本历史）
 - Voice Pack 核心与小说角色解耦
 - 对白密度门禁（>10% WARNING, >20% SEVERE）
 - 破折号密度门禁（>5/千字 WARNING, >12/千字 SEVERE）

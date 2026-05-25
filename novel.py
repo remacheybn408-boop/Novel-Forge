@@ -471,6 +471,83 @@ def cmd_export(slug: str = None):
         return 1
 
 
+def cmd_agents(args):
+    """Multi-agent review board."""
+    if args.agents_action != "review":
+        print("Usage: python novel.py agents review <chapter_no> [--mode light|full]")
+        return 1
+    chapter_no = getattr(args, "chapter_no", None)
+    if not chapter_no:
+        print("Usage: python novel.py agents review <chapter_no>")
+        return 1
+    try:
+        import json as _json
+        cfg_path = PROJECT_ROOT / "config.json"
+        _cfg = {}
+        if cfg_path.exists():
+            _cfg = _json.load(open(cfg_path, encoding="utf-8"))
+        slug = getattr(args, "slug", None) or _cfg.get("default_novel_slug", "demo_novel")
+        novels_root = _cfg.get("novels_root", str(PROJECT_ROOT / "novels"))
+        ch_dir = Path(novels_root) / slug / "第01卷"
+        candidates = list(ch_dir.glob(f"第{chapter_no}章*.txt"))
+        if not candidates:
+            print(f"[WARN] No chapter file found for chapter {chapter_no} in {ch_dir}")
+            print(f"[INFO] Running agent review on empty context...")
+            content = ""
+        else:
+            content = candidates[0].read_text(encoding="utf-8")
+        
+        mode = getattr(args, "mode", "light")
+        print(f"Running {mode}-mode agent review for chapter {chapter_no}...")
+        from scripts.agents.orchestrator import run_agent_review
+        result = run_agent_review(content, int(chapter_no), mode=mode)
+        print(f"  Score: {result.get('overall_score', 'N/A')}")
+        print(f"  Status: {result.get('status', 'N/A')}")
+        chief = result.get("chief_editor", {})
+        for cat in ["must_fix", "should_fix", "keep"]:
+            items = chief.get(cat, [])
+            if items:
+                print(f"  {cat}: {len(items)} items")
+        return 0
+    except Exception as e:
+        print(f"  [ERROR] Agent review failed: {e}")
+        return 1
+
+
+def cmd_rag(args):
+    """Vector RAG queries."""
+    action = getattr(args, "rag_action", None)
+    if action == "status":
+        print("RAG Status:")
+        try:
+            from scripts.rag.rag_config import RAGConfig
+            cfg = RAGConfig()
+            print(f"  Mode: {cfg.get('mode', 'fts5')}")
+            print(f"  Vector: {'available' if cfg.vector_available() else 'unavailable (fallback to FTS5)'}")
+        except Exception as e:
+            print(f"  FTS5: available (default)")
+            print(f"  Vector: unavailable ({e})")
+        return 0
+    elif action == "query":
+        question = " ".join(getattr(args, "question", []))
+        if not question:
+            print("Usage: python novel.py rag query <question>")
+            return 1
+        try:
+            from scripts.rag.rag_query import rag_query
+            result = rag_query(question)
+            print(f"Query: {question}")
+            print(f"Mode: {result.get('mode', 'fts5')}")
+            for r in result.get("results", [])[:5]:
+                print(f"  [{r.get('chapter_no', '?')}] {r.get('evidence', '')[:80]}")
+        except Exception as e:
+            print(f"  [WARN] RAG query unavailable: {e}")
+        return 0
+    else:
+        print("Usage: python novel.py rag {status|query}")
+        return 1
+
+
 def main():
     import argparse
 
@@ -507,6 +584,21 @@ def main():
     # check
     p_check = sub.add_parser("check", help="Run v0.5.0 guards on a chapter file")
     p_check.add_argument("file_path", help="Path to chapter TXT file")
+    # agents
+    p_agents = sub.add_parser("agents", help="Multi-agent review board")
+    p_agents_sub = p_agents.add_subparsers(dest="agents_action")
+    p_agents_review = p_agents_sub.add_parser("review", help="Run agent review on a chapter")
+    p_agents_review.add_argument("chapter_no", nargs="?", help="Chapter number")
+    p_agents_review.add_argument("--mode", default="light", choices=["light", "full"])
+    p_agents_review.add_argument("--slug", help="Novel slug")
+
+    # rag
+    p_rag = sub.add_parser("rag", help="Vector RAG (optional)")
+    p_rag_sub = p_rag.add_subparsers(dest="rag_action")
+    p_rag_status = p_rag_sub.add_parser("status", help="Check RAG status")
+    p_rag_query = p_rag_sub.add_parser("query", help="Query the novel database")
+    p_rag_query.add_argument("question", nargs="*", help="Question to ask")
+
     # export
     p_export = sub.add_parser("export", help="Export novel to single file")
     p_export.add_argument("--slug", help="Novel slug to export")
@@ -541,6 +633,10 @@ def main():
         sys.exit(cmd_guards())
     elif args.command == "check":
         sys.exit(cmd_check(args.file_path))
+    elif args.command == "agents":
+        sys.exit(cmd_agents(args))
+    elif args.command == "rag":
+        sys.exit(cmd_rag(args))
     elif args.command == "export":
         sys.exit(cmd_export(args.slug))
     elif args.command == "wc":

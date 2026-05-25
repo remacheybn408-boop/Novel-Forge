@@ -1,0 +1,190 @@
+{
+  "chapter": 1,
+  "mode": "light",
+  "overall_score": 0,
+  "status": "FAIL",
+  "agents": [
+    {
+      "agent": "context_agent",
+      "chapter": 1,
+      "score": 0,
+      "status": "PASS",
+      "findings": []
+    },
+    {
+      "agent": "voice_agent",
+      "chapter": 1,
+      "score": 0,
+      "status": "PASS",
+      "findings": []
+    },
+    {
+      "agent": "anti_ai_agent",
+      "chapter": 1,
+      "score": 0,
+      "status": "PASS",
+      "findings": []
+    },
+    {
+      "agent": "plot_agent",
+      "chapter": 1,
+      "score": 0,
+      "status": "FAIL",
+      "findings": [
+        {
+          "level": "WARN",
+          "message": "剧情推进不足: 仅检测到0处推进标记",
+          "evidence": "需≥2处",
+          "suggestion": "增加突破/发现/收获/击败等实质性事件",
+          "_agent": "plot_agent"
+        },
+        {
+          "level": "WARN",
+          "message": "冲突/压力不足: 未检测到明显冲突标记",
+          "evidence": "",
+          "suggestion": "增加人际冲突、任务压力或外部威胁",
+          "_agent": "plot_agent"
+        },
+        {
+          "level": "WARN",
+          "message": "爽点缺失: 未检测到打脸/反转/震惊/升级",
+          "evidence": "",
+          "suggestion": "每章至少1个爽点: 打脸/震惊围观/突破/收获",
+          "_agent": "plot_agent"
+        },
+        {
+          "level": "WARN",
+          "message": "结尾无压力/钩子",
+          "evidence": "结尾600字无转折/悬念/危机信号",
+          "suggestion": "章节结尾应留有悬念或压力, 驱动读者继续阅读",
+          "_agent": "plot_agent"
+        },
+        {
+          "level": "WARN",
+          "message": "章节偏短: 0字",
+          "evidence": "",
+          "suggestion": "建议每章2000-4000字",
+          "_agent": "plot_agent"
+        }
+      ]
+    }
+  ],
+  "chief_editor": {
+    "agent": "chief_editor",
+    "chapter": 1,
+    "score": 35,
+    "status": "FAIL",
+    "findings": [
+      {
+        "level": "FAIL",
+        "message": "审稿团汇总: 3 PASS / 0 WARNING / 1 FAIL",
+        "evidence": "总评分: 35/100",
+        "suggestion": "建议修复5项; 建议大幅修订后再提交"
+      },
+      {
+        "level": "WARN",
+        "message": "[should_fix] (plot_agent) 剧情推进不足: 仅检测到0处推进标记",
+        "evidence": "需≥2处",
+        "suggestion": "增加突破/发现/收获/击败等实质性事件"
+      },
+      {
+        "level": "WARN",
+        "message": "[should_fix] (plot_agent) 冲突/压力不足: 未检测到明显冲突标记",
+        "evidence": "",
+        "suggestion": "增加人际冲突、任务压力或外部威胁"
+      },
+      {
+        "level": "WARN",
+        "message": "[should_fix] (plot_agent) 爽点缺失: 未检测到打脸/反转/震惊/升级",
+        "evidence": "",
+        "suggestion": "每章至少1个爽点: 打脸/震惊围观/突破/收获"
+      },
+      {
+        "level": "WARN",
+        "message": "[should_fix] (plot_agent) 结尾无压力/钩子",
+        "evidence": "结尾600字无转折/悬念/危机信号",
+        "suggestion": "章节结尾应留有悬念或压力, 驱动读者继续阅读"
+      },
+      {
+        "level": "WARN",
+        "message": "[should_fix] (plot_agent) 章节偏短: 0字",
+        "evidence": "",
+        "suggestion": "建议每章2000-4000字"
+      }
+    ],
+    "summary": {
+      "pass_count": 3,
+      "warn_count": 0,
+      "fail_count": 1,
+      "must_fix_count": 0,
+      "should_fix_count": 5,
+      "keep_count": 0
+    },
+    "agent_scores": {
+      "context_agent": {
+        "score": 0,
+        "status": "PASS",
+        "finding_count": 0
+      },
+      "voice_agent": {
+        "score": 0,
+        "status": "PASS",
+        "finding_count": 0
+      },
+      "anti_ai_agent": {
+        "score": 0,
+        "status": "PASS",
+        "finding_count": 0
+      },
+      "plot_agent": {
+        "score": 0,
+        "status": "FAIL",
+        "finding_count": 5
+      }
+    },
+    "must_fix": [],
+    "should_fix": [
+      {
+        "level": "WARN",
+        "message": "剧情推进不足: 仅检测到0处推进标记",
+        "evidence": "需≥2处",
+        "suggestion": "增加突破/发现/收获/击败等实质性事件"
+      },
+      {
+        "level": "WARN",
+        "message": "冲突/压力不足: 未检测到明显冲突标记",
+        "evidence": "",
+        "suggestion": "增加人际冲突、任务压力或外部威胁"
+      },
+      {
+        "level": "WARN",
+        "message": "爽点缺失: 未检测到打脸/反转/震惊/升级",
+        "evidence": "",
+        "suggestion": "每章至少1个爽点: 打脸/震惊围观/突破/收获"
+      },
+      {
+        "level": "WARN",
+        "message": "结尾无压力/钩子",
+        "evidence": "结尾600字无转折/悬念/危机信号",
+        "suggestion": "章节结尾应留有悬念或压力, 驱动读者继续阅读"
+      },
+      {
+        "level": "WARN",
+        "message": "章节偏短: 0字",
+        "evidence": "",
+        "suggestion": "建议每章2000-4000字"
+      }
+    ],
+    "keep": []
+  },
+  "summary": {
+    "total_agents": 4,
+    "pass_count": 3,
+    "warn_count": 0,
+    "fail_count": 1,
+    "must_fix_count": 0,
+    "should_fix_count": 5
+  },
+  "timestamp": "2026-05-25T16:23:19",
+  "version": "0.5.5"
+}

@@ -1,0 +1,100 @@
+# ============================================================
+# Multi-Agent Review Board Configuration v0.5.5
+# ============================================================
+# Agent只审稿，不自动改正文。只输出报告，不覆盖原文。
+#
+# 模式:
+#   light: context + voice + anti_ai + plot + chief_editor (5 agents)
+#   full:  全部8个 + chief_editor
+#
+# 用法:
+#   from scripts.agents.orchestrator import run_agent_review
+#   result = run_agent_review(content, chapter_no, mode="light", config=cfg)
+# ============================================================
+
+# ── 全局设置 ──
+enabled: true
+default_mode: light            # light | full
+output_dir: reports/agent_reviews
+fail_on_error: false           # Agent 异常是否导致整体 FAIL
+
+# ── Agent 配置 ──
+agents:
+
+  # ═══ 上下文承接 Agent ═══
+  context:
+    enabled: true
+    min_bridge_score: 4        # 最低桥接分数 (0-12)
+    tail_lookback: 400         # 检查上章结尾的字数
+    description: "检查承接上一章结尾/伤势延续/伏笔/真空续写"
+
+  # ═══ 角色口吻 Agent ═══
+  voice:
+    enabled: true
+    max_narration_ai: 2        # 旁白AI腔最大容忍数
+    max_memes: 1               # 网络梗最大容忍数
+    max_english: 2             # 英文词最大容忍数
+    description: "检查角色口吻/方言浓度/梗语言包/英语污染"
+
+  # ═══ 反AI腔 Agent ═══
+  anti_ai:
+    enabled: true
+    max_not_a_b: 3             # "不是而是"句式最大容忍数
+    max_cliches: 1             # AI套话最大容忍数
+    min_paragraph_info: 30     # 段落最小信息量(字)
+    description: "检查AI腔/总结腔/模板句/水文"
+
+  # ═══ 剧情推进 Agent ═══
+  plot:
+    enabled: true
+    min_progress: 2            # 最少推进标记数
+    min_conflicts: 1           # 最少冲突标记数
+    min_pleasure: 1            # 最少爽点标记数
+    tail_chars: 600            # 结尾检查字数
+    description: "检查剧情推进/冲突/爽点/结尾压力"
+
+  # ═══ 连续性 Agent ═══
+  continuity:
+    enabled: true
+    strict_items: true         # 严格物品跟踪
+    strict_states: true        # 严格状态跟踪
+    description: "检查人物状态/物品/地点/任务线/伏笔"
+
+  # ═══ 追读力 Agent ═══
+  reader_pull:
+    enabled: true
+    min_hooks: 3               # 最少钩子数
+    min_payoffs: 0             # 最少微兑现数 (不强求)
+    tail_chars: 500            # 结尾分析字数
+    description: "检查钩子/微兑现/新问题/追读力"
+
+  # ═══ 设定自洽 Agent ═══
+  setting:
+    enabled: true
+    strict_physics: true       # 严格检查物理类比
+    strict_realm: true         # 严格境界检查
+    allow_cross_realm: false   # 是否允许跨境战斗 (需解释)
+    description: "检查修仙设定自洽/物理类比/前后矛盾规则"
+
+  # ═══ 主编汇总 ═══
+  chief_editor:
+    enabled: true
+    dedup_threshold: 0.6       # 去重相似度阈值 (0-1)
+    must_fix_threshold: 70     # 必须修复的严重度阈值
+    description: "汇总所有Agent报告, 去重, 按严重度排序, 分类输出"
+
+# ── 调度设置 ──
+orchestration:
+  strategy: sequential         # sequential | parallel (未来)
+  timeout_per_agent: 30        # 每Agent超时(秒), 0=不限制
+  fail_fast: false             # 遇FAIL是否立即停止
+  report_format: json          # json | jsonl
+
+# ── 模式定义 ──
+modes:
+  light:
+    agents: [context, voice, anti_ai, plot]
+    description: "快速审稿模式, 5个Agent (含主编汇总)"
+  full:
+    agents: [context, voice, anti_ai, plot, continuity, reader_pull, setting]
+    description: "完整审稿模式, 8个Agent (含主编汇总)"
