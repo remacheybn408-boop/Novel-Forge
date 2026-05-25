@@ -27,8 +27,9 @@ LJ = "\u300c"
 RJ = "\u300d"
 DIALOGUE_PATTERN = re.compile(f"[{LQ}{RQ}{LJ}{RJ}]([^{LQ}{RQ}{LJ}{RJ}]{{5,200}})[{LQ}{RQ}{LJ}{RJ}]")
 SPEAKER_PATTERN = re.compile(
-    r'(周砚|沈|林|管事|矿头|老矿头|师尊|长老|韩烈|马瘸子|小五|刘三|周旺|'
-    r'顾长庚|赵管事|罗千钧|齐岳|宋炉公|魂主|周不器|沈青霜|林观澜)[说问道：:]'
+    # Generic: matches any 1-6 char name/title + speech verb (non-greedy)
+    # Exclude whitespace and major punctuation before the speech verb
+    r'([^\s，。！？]{1,6}?)[说问道喊叫吼骂叹曰：:]'
 )
 
 

@@ -1,6 +1,6 @@
 [
   {
-    "character_name": "林观澜",
+    "character_name": "理工主角",
     "voice_type": "冷静研究员",
     "dialect_pack": "none",
     "register_pack": "none",
@@ -24,7 +24,7 @@
     "source": "manual"
   },
   {
-    "character_name": "周不器",
+    "character_name": "好兄弟",
     "voice_type": "嘴贫工程型",
     "dialect_pack": "henan_light",
     "register_pack": "none",
@@ -48,7 +48,7 @@
     "source": "manual"
   },
   {
-    "character_name": "齐岳老祖",
+    "character_name": "古修长老",
     "voice_type": "齐鲁古修",
     "dialect_pack": "shandong_light",
     "register_pack": "classical_tone",
@@ -72,7 +72,7 @@
     "source": "manual"
   },
   {
-    "character_name": "罗千钧",
+    "character_name": "戒律执事",
     "voice_type": "戒律堂硬派",
     "dialect_pack": "shaanxi_light",
     "register_pack": "official_tone",
@@ -96,7 +96,7 @@
     "source": "manual"
   },
   {
-    "character_name": "宋炉公",
+    "character_name": "丹炉老匠",
     "voice_type": "丹塔老匠人",
     "dialect_pack": "sichuan_light",
     "register_pack": "none",
@@ -120,7 +120,7 @@
     "source": "manual"
   },
   {
-    "character_name": "魂主",
+    "character_name": "冷反派",
     "voice_type": "终极Boss",
     "dialect_pack": "none",
     "register_pack": "cold_boss_tone",

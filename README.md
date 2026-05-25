@@ -4,7 +4,7 @@
 
 Novel Pipeline Write Engine 是一个轻量小说工程化写作流水线，专注长篇小说的连续性、角色口吻、AI 腔检查、防幻觉、写前任务卡和写后质量报告。
 
-> **当前版本：v0.5.0 — Stable & Easy Mode。** 统一入口 novel.py、健康检查 status、写前任务卡、Voice/Meme Pack 增强、Reader Pull 追读力门禁、HTML 只读报告。48 个测试文件，295 个测试用例通过。
+> **当前版本：v0.5.0 — Stable & Easy Mode。** 统一入口 novel.py、健康检查 status、写前任务卡、Voice/Meme Pack 增强、Reader Pull 追读力门禁、HTML 只读报告。48 个测试文件，268 个测试用例，267 个通过。
 
 ---
 
@@ -66,11 +66,14 @@ run_report.bat          ← 打开 reports/index.html
 ### v0.5.0 统一入口
 
 ```bash
+python novel.py init     # 初始化项目
 python novel.py status   # 健康检查
 python novel.py demo     # 跑通 demo
 python novel.py pre 1    # 写前任务卡
 python novel.py post 1   # 入库 + 门禁
+python novel.py review 1 # 写后审稿
 python novel.py report   # 生成 HTML 报告
+python novel.py export --slug <slug>  # 导出小说合集
 ```
 
 ### 手动运行
@@ -251,10 +254,12 @@ next chapter context        ← 自动读取上章 brief，进入下章 pre
 
 ## 文档导航
 
+- [v0.5.0 Stable & Easy Mode 详解](docs/V050_STABLE_EASY_MODE.md) ← 必读
 - [架构说明](docs/architecture.md)
 - [数据库 Schema](docs/database.md)
 - [流水线说明](docs/pipeline.md)
 - [路线图](docs/ROADMAP.md)
+- [更新日志](CHANGELOG.md)
 - [Guard Registry](docs/GUARD_REGISTRY.md)
 - [FTS5 自愈](docs/README_FULL.md#fts5)
 - [Hermes Agent 写作规则](docs/HERMES_AGENT_RULES.md)
@@ -272,6 +277,40 @@ next chapter context        ← 自动读取上章 brief，进入下章 pre
 
 - [novel-factory Router](docs/skills/novel_factory_router_SKILL.md) — 正文写作前必读
 - [长篇写作行为规范](docs/skills/long_novel_writing_SKILL.md)
+
+---
+
+## 与 Webnovel Writer 的区别
+
+| 维度 | Novel Pipeline WE | Webnovel Writer |
+|------|-------------------|-----------------|
+| 定位 | 轻量质量流水线 | 完整写作系统 |
+| 入口 | `novel.py` 一个命令 | 多 Agent 调度 |
+| 许可证 | MIT | GPL-3.0 |
+| 依赖 | Python + SQLite，无需 Docker/Node | Docker + Node + npm |
+| 报告 | 纯 HTML，双击即开 | Web Dashboard |
+| 门禁 | 17+ 规则门禁，可校准 | LLM-based review |
+| 多 Agent | v0.5.1+ 预留 | 已实现 |
+| Voice Pack | 41 个 JSON + YAML 声纹包 | 无独立声纹系统 |
+| 学习曲线 | 5 分钟跑通 demo | 需要理解多 Agent 概念 |
+| 适用 | 个人作者、小团队 | 团队协作 |
+
+本项目的核心哲学：**能简单就不要复杂，能稳定就不要炫技。**
+v0.5.0 没有抄袭 Webnovel Writer 任何源码，两者是独立的项目。
+
+---
+
+## Roadmap
+
+| 版本 | 计划 |
+|------|------|
+| v0.5.0 | Stable & Easy Mode（当前版本） |
+| v0.5.1 | 多 Agent 实验性支持 |
+| v0.6.0 | Voice Pack 自动扩写 + 改稿推荐 |
+| v0.7.0 | 多小说宇宙联动 + 跨卷伏笔 |
+| v1.0.0 | 完整 GUI + 发布 |
+
+详见 [docs/ROADMAP.md](docs/ROADMAP.md)
 
 ---
 

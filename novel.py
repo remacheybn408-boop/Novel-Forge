@@ -311,24 +311,170 @@ def cmd_check(file_path: str):
     return 0
 
 
+def cmd_init():
+    """Initialize project: create directories, copy config, init DB."""
+    print("=" * 60)
+    print("  Novel Pipeline - Write Engine v0.5.0")
+    print("  Initialize Project")
+    print("=" * 60)
+    print()
+
+    # Check for config.json
+    cfg = PROJECT_ROOT / "config.json"
+    if not cfg.exists():
+        example = PROJECT_ROOT / "config.example.json"
+        if example.exists():
+            import shutil
+            shutil.copy(example, cfg)
+            print("  [OK] config.json created from config.example.json")
+        else:
+            print("  [WARN] config.example.json not found")
+    else:
+        print("  [OK] config.json already exists")
+
+    # Init DB
+    print()
+    print("  Initializing database...")
+    try:
+        from init_db import init_db as db_init
+        import json as _json
+        with open(cfg, encoding="utf-8") as f:
+            config = _json.load(f)
+        db_path = config.get("db_path", str(PROJECT_ROOT / "novel_memory.db"))
+        schema = PROJECT_ROOT / "database" / "schema.sql"
+        if not schema.exists():
+            print("  [WARN] schema.sql not found, skipping DB init")
+        else:
+            # Ensure db directory exists
+            Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+            db_init(str(db_path), str(schema))
+            print(f"  [OK] Database initialized: {db_path}")
+    except Exception as e:
+        print(f"  [WARN] DB init error: {e}")
+
+    # Create directories
+    dirs = ["outputs/task_cards", "outputs/reviews", "exports", "reports", "tmp"]
+    for d in dirs:
+        p = PROJECT_ROOT / d
+        p.mkdir(parents=True, exist_ok=True)
+        print(f"  [OK] Directory created: {d}")
+
+    print()
+    print("  Project initialized. Run 'python novel.py demo' to test.")
+    return 0
+
+
+def cmd_pre(chapter_no: str = None):
+    """Run pre-write gate for a chapter."""
+    cfg = PROJECT_ROOT / "config.json"
+    if not chapter_no:
+        print("Usage: python novel.py pre <chapter_no>")
+        return 1
+    print(f"  Running pre-write gate for chapter {chapter_no}...")
+    try:
+        import subprocess
+        result = subprocess.run(
+            [sys.executable, str(SCRIPTS_DIR / "chapter_pipeline.py"), "pre", str(chapter_no),
+             "--config", str(cfg)],
+            cwd=str(PROJECT_ROOT), timeout=120)
+        return result.returncode
+    except Exception as e:
+        print(f"  [ERROR] {e}")
+        return 1
+
+
+def cmd_post(chapter_no: str = None):
+    """Post-write: run guards and ingest chapter."""
+    cfg = PROJECT_ROOT / "config.json"
+    if not chapter_no:
+        print("Usage: python novel.py post <chapter_no>")
+        return 1
+    print(f"  Running post-write guards for chapter {chapter_no}...")
+    try:
+        import subprocess
+        result = subprocess.run(
+            [sys.executable, str(SCRIPTS_DIR / "chapter_pipeline.py"), "post", str(chapter_no),
+             "--config", str(cfg)],
+            cwd=str(PROJECT_ROOT), timeout=300)
+        return result.returncode
+    except Exception as e:
+        print(f"  [ERROR] {e}")
+        return 1
+
+
+def cmd_review(chapter_no: str = None):
+    """Run guard review on a chapter."""
+    cfg = PROJECT_ROOT / "config.json"
+    if not chapter_no:
+        print("Usage: python novel.py review <chapter_no>")
+        return 1
+    print(f"  Running review for chapter {chapter_no}...")
+    try:
+        import subprocess
+        result = subprocess.run(
+            [sys.executable, str(SCRIPTS_DIR / "chapter_pipeline.py"), "review", str(chapter_no),
+             "--config", str(cfg)],
+            cwd=str(PROJECT_ROOT), timeout=300)
+        return result.returncode
+    except Exception as e:
+        print(f"  [ERROR] {e}")
+        return 1
+
+
+def cmd_export(slug: str = None):
+    """Export novel to a single file."""
+    if not slug:
+        print("Usage: python novel.py export --slug <novel_slug> [--format txt|md]")
+        return 1
+    print(f"  Exporting novel '{slug}'...")
+    try:
+        import subprocess
+        args = [sys.executable, str(SCRIPTS_DIR / "export_novel.py"),
+                "--slug", slug, "--format", "md",
+                "--output", str(PROJECT_ROOT / "exports" / f"{slug}_full.md")]
+        result = subprocess.run(args, cwd=str(PROJECT_ROOT), timeout=60)
+        if result.returncode == 0:
+            print(f"  [OK] Exported to exports/{slug}_full.md")
+        return result.returncode
+    except Exception as e:
+        print(f"  [ERROR] {e}")
+        return 1
+
+
 def main():
     import argparse
 
     parser = argparse.ArgumentParser(
         description="Novel Pipeline - Write Engine v0.5.0 CLI",
     )
-    parser.add_argument(
-        "command",
-        nargs="?",
-        default="status",
-        choices=["status", "demo", "report", "guards", "check"],
-        help="Command to run (default: status)",
-    )
-    parser.add_argument(
-        "args",
-        nargs="*",
-        help="Additional arguments for the command",
-    )
+    sub = parser.add_subparsers(dest="command", help="Command to run")
+
+    # status
+    sub.add_parser("status", help="Run environment diagnostics")
+    # demo
+    sub.add_parser("demo", help="Run demo pipeline")
+    # init
+    sub.add_parser("init", help="Initialize project directories and database")
+    # pre
+    p_pre = sub.add_parser("pre", help="Generate pre-write task card")
+    p_pre.add_argument("chapter_no", nargs="?", help="Chapter number")
+    # post
+    p_post = sub.add_parser("post", help="Post-write: run guards and ingest")
+    p_post.add_argument("chapter_no", nargs="?", help="Chapter number")
+    # review
+    p_review = sub.add_parser("review", help="Run guard review on a chapter")
+    p_review.add_argument("chapter_no", nargs="?", help="Chapter number")
+    # report
+    sub.add_parser("report", help="Show recent guard reports")
+    # guards
+    sub.add_parser("guards", help="List registered guards")
+    # check
+    p_check = sub.add_parser("check", help="Run v0.5.0 guards on a chapter file")
+    p_check.add_argument("file_path", help="Path to chapter TXT file")
+    # export
+    p_export = sub.add_parser("export", help="Export novel to single file")
+    p_export.add_argument("--slug", help="Novel slug to export")
+    p_export.add_argument("--format", default="md", choices=["txt", "md"])
 
     args = parser.parse_args()
 
@@ -336,15 +482,24 @@ def main():
         sys.exit(cmd_status())
     elif args.command == "demo":
         sys.exit(cmd_demo())
+    elif args.command == "init":
+        sys.exit(cmd_init())
+    elif args.command == "pre":
+        sys.exit(cmd_pre(getattr(args, "chapter_no", None)))
+    elif args.command == "post":
+        sys.exit(cmd_post(getattr(args, "chapter_no", None)))
+    elif args.command == "review":
+        sys.exit(cmd_review(getattr(args, "chapter_no", None)))
     elif args.command == "report":
         sys.exit(cmd_report())
     elif args.command == "guards":
         sys.exit(cmd_guards())
     elif args.command == "check":
-        if not args.args:
-            print("Usage: python novel.py check <chapter_file.txt>")
-            sys.exit(1)
-        sys.exit(cmd_check(args.args[0]))
+        sys.exit(cmd_check(args.file_path))
+    elif args.command == "export":
+        sys.exit(cmd_export(args.slug))
+    else:
+        parser.print_help()
 
 
 if __name__ == "__main__":

@@ -1,0 +1,24 @@
+# Multi-Agent Configuration (v0.5.1+)
+# NOT enabled in v0.5.0
+
+enabled: false  # Set to true in v0.5.1+
+
+agents:
+  character_consistency:
+    enabled: false
+    class: agents.character_agent.CharacterAgent
+    mode: review
+    
+  plot_coherence:
+    enabled: false
+    class: agents.plot_agent.PlotAgent
+    mode: review
+    
+  voice_guard:
+    enabled: false
+    class: agents.voice_agent.VoiceAgent
+    mode: guard
+
+orchestration:
+  strategy: sequential  # sequential | parallel | vote
+  conflict_resolution: majority  # majority | escalate | first_pass

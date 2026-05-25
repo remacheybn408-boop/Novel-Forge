@@ -20,9 +20,9 @@ def _setup_db():
     # Create a demo novel
     conn = sqlite3.connect(db_path)
     conn.execute("INSERT INTO novels(slug, title) VALUES(?,?)", ("demo_novel", "Demo Novel"))
-    conn.execute("INSERT INTO characters(novel_id, name, role) VALUES(1, '林观澜', 'protagonist')")
-    conn.execute("INSERT INTO characters(novel_id, name, role) VALUES(1, '周不器', 'supporting')")
-    conn.execute("INSERT INTO characters(novel_id, name, role) VALUES(1, '齐岳老祖', 'supporting')")
+    conn.execute("INSERT INTO characters(novel_id, name, role) VALUES(1, '理工主角', 'protagonist')")
+    conn.execute("INSERT INTO characters(novel_id, name, role) VALUES(1, '好兄弟', 'supporting')")
+    conn.execute("INSERT INTO characters(novel_id, name, role) VALUES(1, '古修长老', 'supporting')")
     conn.commit()
     conn.close()
 
@@ -60,21 +60,21 @@ def test_get_profiles_for_characters():
     import_profiles(db_path, "demo_novel", example_path)
     config = {"voice_system": {"enabled": True, "use_database_profiles": True}, "db_path": db_path}
     ctx = load_voice_context(config, "demo_novel", db_path=db_path,
-                             character_names=["林观澜", "周不器"])
+                             character_names=["理工主角", "好兄弟"])
     assert len(ctx["profiles"]) == 2
     names = {p["character_name"] for p in ctx["profiles"]}
-    assert names == {"林观澜", "周不器"}
+    assert names == {"理工主角", "好兄弟"}
 
 
-def test_lin_guanlan_no_dialect():
-    """林观澜 must have dialect_level=0 and no dialect pack."""
+def test_protagonist_no_dialect():
+    """理工主角 must have dialect_level=0 and no dialect pack."""
     db_path = _setup_db()
     example_path = os.path.join(os.path.dirname(__file__), "..",
                                 "examples", "demo_novel", "voice_profiles.example.json")
     import_profiles(db_path, "demo_novel", example_path)
     config = {"voice_system": {"enabled": True, "use_database_profiles": True}, "db_path": db_path}
     ctx = load_voice_context(config, "demo_novel", db_path=db_path,
-                             character_names=["林观澜"])
+                             character_names=["理工主角"])
     lg = ctx["profiles"][0]
     assert lg["dialect_level"] == 0
     assert lg["meme_level"] == 0

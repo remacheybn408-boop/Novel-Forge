@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-doctor.py — 环境诊断工具 v0.4.0
+doctor.py — 环境诊断工具 v0.5.0
 
 检查项目运行环境是否就绪：
 - Python 版本
@@ -23,7 +23,7 @@ def check(desc, ok, detail=""):
 
 
 def main():
-    print("Novel Pipeline - Write Engine v0.4.0")
+    print("Novel Pipeline - Write Engine v0.5.0")
     print("环境诊断 (doctor.py)")
     print("=" * 50)
 
