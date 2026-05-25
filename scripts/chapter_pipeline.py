@@ -94,7 +94,7 @@ class App:
         if chapters_dir:
             self.chapters_dir = Path(chapters_dir)
         else:
-            self.chapters_dir = self.novels_root / novel_slug / f"第{volume_no:02d}卷"
+            self.chapters_dir = self.novels_root / f"第{volume_no:02d}卷"
 
         self.state_dir = self.exports_root / "pipeline_state"
 
