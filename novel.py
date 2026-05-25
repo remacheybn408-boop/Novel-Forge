@@ -311,6 +311,33 @@ def cmd_check(file_path: str):
     return 0
 
 
+def cmd_wc(file_path: str = None):
+    """Count Chinese characters in a chapter file."""
+    if not file_path:
+        print("Usage: python novel.py wc <chapter_file.txt>")
+        return 1
+    fp = Path(file_path)
+    if not fp.exists():
+        print(f"[ERROR] File not found: {fp}")
+        return 1
+    text = fp.read_text(encoding="utf-8")
+    # Count Chinese chars only (U+4E00-U+9FFF plus common CJK extensions)
+    cn = sum(1 for c in text if '\u4e00' <= c <= '\u9fff' or '\u3400' <= c <= '\u4dbf')
+    total = len(text)
+    print(f"  {fp.name}")
+    print(f"  汉字: {cn}  |  总字符: {total}  |  占比: {cn*100//total}%")
+    # Quick check against limits
+    if cn < 1300:
+        print(f"  ⚠️  低于最低线 (1300)，需补 {1300-cn} 字+")
+    elif cn < 1900:
+        print(f"  ✅ 通过最低线，距最佳范围还差 {1900-cn} 字")
+    elif cn <= 3300:
+        print(f"  ✅ 在正常范围内")
+    else:
+        print(f"  ⚠️  超过上限 (3300)")
+    return 0
+
+
 def cmd_init():
     """Initialize project: create directories, copy config, init DB."""
     print("=" * 60)
@@ -364,57 +391,60 @@ def cmd_init():
     return 0
 
 
-def cmd_pre(chapter_no: str = None):
+def cmd_pre(chapter_no: str = None, slug: str = None, volume_no: str = None):
     """Run pre-write gate for a chapter."""
     cfg = PROJECT_ROOT / "config.json"
     if not chapter_no:
-        print("Usage: python novel.py pre <chapter_no>")
+        print("Usage: python novel.py pre <chapter_no> [--slug <slug>] [--volume <n>]")
         return 1
     print(f"  Running pre-write gate for chapter {chapter_no}...")
     try:
         import subprocess
-        result = subprocess.run(
-            [sys.executable, str(SCRIPTS_DIR / "chapter_pipeline.py"), "pre", str(chapter_no),
-             "--config", str(cfg)],
-            cwd=str(PROJECT_ROOT), timeout=120)
+        cmd = [sys.executable, str(SCRIPTS_DIR / "chapter_pipeline.py"), "pre", str(chapter_no),
+               "--config", str(cfg)]
+        if slug: cmd.extend(["--novel-slug", slug])
+        if volume_no: cmd.extend(["--volume-no", str(volume_no)])
+        result = subprocess.run(cmd, cwd=str(PROJECT_ROOT), timeout=120)
         return result.returncode
     except Exception as e:
         print(f"  [ERROR] {e}")
         return 1
 
 
-def cmd_post(chapter_no: str = None):
+def cmd_post(chapter_no: str = None, slug: str = None, volume_no: str = None):
     """Post-write: run guards and ingest chapter."""
     cfg = PROJECT_ROOT / "config.json"
     if not chapter_no:
-        print("Usage: python novel.py post <chapter_no>")
+        print("Usage: python novel.py post <chapter_no> [--slug <slug>] [--volume <n>]")
         return 1
     print(f"  Running post-write guards for chapter {chapter_no}...")
     try:
         import subprocess
-        result = subprocess.run(
-            [sys.executable, str(SCRIPTS_DIR / "chapter_pipeline.py"), "post", str(chapter_no),
-             "--config", str(cfg)],
-            cwd=str(PROJECT_ROOT), timeout=300)
+        cmd = [sys.executable, str(SCRIPTS_DIR / "chapter_pipeline.py"), "post", str(chapter_no),
+               "--config", str(cfg)]
+        if slug: cmd.extend(["--novel-slug", slug])
+        if volume_no: cmd.extend(["--volume-no", str(volume_no)])
+        result = subprocess.run(cmd, cwd=str(PROJECT_ROOT), timeout=300)
         return result.returncode
     except Exception as e:
         print(f"  [ERROR] {e}")
         return 1
 
 
-def cmd_review(chapter_no: str = None):
+def cmd_review(chapter_no: str = None, slug: str = None, volume_no: str = None):
     """Run guard review on a chapter."""
     cfg = PROJECT_ROOT / "config.json"
     if not chapter_no:
-        print("Usage: python novel.py review <chapter_no>")
+        print("Usage: python novel.py review <chapter_no> [--slug <slug>] [--volume <n>]")
         return 1
     print(f"  Running review for chapter {chapter_no}...")
     try:
         import subprocess
-        result = subprocess.run(
-            [sys.executable, str(SCRIPTS_DIR / "chapter_pipeline.py"), "review", str(chapter_no),
-             "--config", str(cfg)],
-            cwd=str(PROJECT_ROOT), timeout=300)
+        cmd = [sys.executable, str(SCRIPTS_DIR / "chapter_pipeline.py"), "review", str(chapter_no),
+               "--config", str(cfg)]
+        if slug: cmd.extend(["--novel-slug", slug])
+        if volume_no: cmd.extend(["--volume-no", str(volume_no)])
+        result = subprocess.run(cmd, cwd=str(PROJECT_ROOT), timeout=300)
         return result.returncode
     except Exception as e:
         print(f"  [ERROR] {e}")
@@ -458,12 +488,18 @@ def main():
     # pre
     p_pre = sub.add_parser("pre", help="Generate pre-write task card")
     p_pre.add_argument("chapter_no", nargs="?", help="Chapter number")
+    p_pre.add_argument("--slug", help="Novel slug")
+    p_pre.add_argument("--volume", help="Volume number")
     # post
     p_post = sub.add_parser("post", help="Post-write: run guards and ingest")
     p_post.add_argument("chapter_no", nargs="?", help="Chapter number")
+    p_post.add_argument("--slug", help="Novel slug")
+    p_post.add_argument("--volume", help="Volume number")
     # review
     p_review = sub.add_parser("review", help="Run guard review on a chapter")
     p_review.add_argument("chapter_no", nargs="?", help="Chapter number")
+    p_review.add_argument("--slug", help="Novel slug")
+    p_review.add_argument("--volume", help="Volume number")
     # report
     sub.add_parser("report", help="Show recent guard reports")
     # guards
@@ -475,6 +511,9 @@ def main():
     p_export = sub.add_parser("export", help="Export novel to single file")
     p_export.add_argument("--slug", help="Novel slug to export")
     p_export.add_argument("--format", default="md", choices=["txt", "md"])
+    # wc
+    p_wc = sub.add_parser("wc", help="Count Chinese characters in a chapter file")
+    p_wc.add_argument("file_path", nargs="?", help="Path to chapter TXT file")
 
     args = parser.parse_args()
 
@@ -485,11 +524,17 @@ def main():
     elif args.command == "init":
         sys.exit(cmd_init())
     elif args.command == "pre":
-        sys.exit(cmd_pre(getattr(args, "chapter_no", None)))
+        sys.exit(cmd_pre(getattr(args, "chapter_no", None),
+                        getattr(args, "slug", None),
+                        getattr(args, "volume", None)))
     elif args.command == "post":
-        sys.exit(cmd_post(getattr(args, "chapter_no", None)))
+        sys.exit(cmd_post(getattr(args, "chapter_no", None),
+                         getattr(args, "slug", None),
+                         getattr(args, "volume", None)))
     elif args.command == "review":
-        sys.exit(cmd_review(getattr(args, "chapter_no", None)))
+        sys.exit(cmd_review(getattr(args, "chapter_no", None),
+                           getattr(args, "slug", None),
+                           getattr(args, "volume", None)))
     elif args.command == "report":
         sys.exit(cmd_report())
     elif args.command == "guards":
@@ -498,6 +543,8 @@ def main():
         sys.exit(cmd_check(args.file_path))
     elif args.command == "export":
         sys.exit(cmd_export(args.slug))
+    elif args.command == "wc":
+        sys.exit(cmd_wc(args.file_path))
     else:
         parser.print_help()
 
