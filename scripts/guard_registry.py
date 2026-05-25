@@ -21,6 +21,8 @@ from typing import Optional
 _script_dir = Path(__file__).resolve().parent
 if str(_script_dir) not in sys.path:
     sys.path.insert(0, str(_script_dir))
+if str(_script_dir / "guards") not in sys.path:
+    sys.path.insert(0, str(_script_dir / "guards"))
 
 from guard_result import (
     GuardResult, GuardSummary, GuardFinding,
@@ -50,6 +52,7 @@ GUARD_LEVELS = {
     "dialogue_naturalness_guard": 2,
     "style_variation_guard": 2,
     "compliance_selfcheck_guard": 3,
+    "punctuation_guard": 2,
 }
 
 LEVEL2_CANNOT_FAIL = {k for k, v in GUARD_LEVELS.items() if v == 2}
@@ -65,7 +68,7 @@ MODE_GUARDS = {
         "padding_guard", "anti_ai_guard",
         "show_dont_tell_guard", "character_voice_guard",
         "concrete_anchor_guard", "scene_causality_guard",
-        "dialogue_naturalness_guard",
+        "dialogue_naturalness_guard", "punctuation_guard",
     ],
     "submission": [
         "continuity_evidence_guard", "canon_evidence_guard",
@@ -99,6 +102,7 @@ GUARD_RUNNERS = {
     "dialogue_naturalness_guard": ("dialogue_naturalness_guard", "run_dialogue_naturalness_check"),
     "style_variation_guard":      ("style_variation_guard", "build_report"),
     "compliance_selfcheck_guard": ("compliance_selfcheck_guard", "run_compliance_selfcheck"),
+    "punctuation_guard": ("punctuation_guard", "run_punctuation_check"),
 }
 
 
