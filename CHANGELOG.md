@@ -23,7 +23,7 @@
 - 破折号密度门禁（>5/千字 WARNING, >12/千字 SEVERE）
 - 无引号对白检测 fallback 模式
 
-### Not Included (for v0.5.1+)
+### Not Included (for future versions)
 - 完整多 Agent 写作系统
 - Web Dashboard 前端工程
 - Vector / Graph Hybrid RAG

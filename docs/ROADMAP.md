@@ -66,10 +66,41 @@ pytest tests/ -v
 
 ---
 
-## Phase 3: 工具增强
+## Phase 3: v0.4.x — Human-Grade Revision Suite ✅ (已完成)
+
+- [x] 7 个拟人审稿门禁（concrete_anchor / scene_causality / dialogue_naturalness / style_variation / editor_revision / compliance_selfcheck / final_submission_report）
+- [x] Guard Registry 统一调度（scripts/guard_registry.py）
+- [x] Revision Loop 自动改稿闭环
+- [x] Continuity Evidence Guard 连续桥证据
+- [x] Bridge Evidence Guard 桥证据门禁
+- [x] Character Voice Guard 角色口吻门禁
+- [x] GuardResult 统一数据结构
+
+## Phase 4: v0.5.0 — Stable & Easy Mode ✅ (已完成)
+
+- [x] novel.py 统一入口（13个子命令）
+- [x] status 健康检查
+- [x] Reader Pull Guard 追读力门禁（5 维度）
+- [x] Voice Pack Guard + Meme Pack Guard
+- [x] 写前任务卡 Task Card
+- [x] HTML 只读报告
+- [x] 5 种题材模板
+- [x] Windows 一键脚本（install.bat / run_demo.bat / run_report.bat）
+
+## Phase 5: v0.5.5 — Hotfix Quality ✅ (当前版本)
+
+- [x] 版本号统一（version.py → 全项目读 VERSION）
+- [x] Release 包卫生（config.json 脱敏 / .pytest_cache 排除）
+- [x] CI 修复（pip install -r requirements.txt + timeout）
+- [x] test subprocess 加 timeout
+- [x] meme_pack_guard type 过滤
+- [x] 3 个新 guard 接入 guard_registry（21 guards）
+- [x] README 测试数更新（43文件/278用例）
+
+## Phase 6: 工具增强
 
 - [ ] scripts/create_novel.py — 创建新小说项目
-- [ ] scripts/export_novel.py — 导出完整小说
+- [x] scripts/export_novel.py — 导出完整小说
 - [x] scripts/backup_db.py — 极简版（v0.3.1；v0.4.0 完整工具增强）
 - [ ] 端到端流水线测试
 
@@ -81,4 +112,4 @@ pytest tests/ -v
 
 ---
 
-> 当前：Phase 2.5 已完成，下一步 Phase 3 工具增强。
+> 当前：Phase 5 (v0.5.5) 已完成，下一步 Phase 6 工具增强。
