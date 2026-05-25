@@ -1,0 +1,72 @@
+{
+  "status": "WARNING",
+  "score": 80,
+  "stats": {
+    "chapter_no": 7,
+    "word_count": 2028,
+    "total_dashes": 46,
+    "dash_pairs": 11,
+    "dash_single": 0,
+    "ellipsis_count": 0,
+    "exclamation_count": 0,
+    "paragraphs": 58,
+    "dash_classification": {
+      "解释型": 3,
+      "插入型": 2,
+      "悬念型": 2,
+      "对话拖音/喜剧型": 20
+    }
+  },
+  "findings": [
+    {
+      "level": "STRONG_WARNING",
+      "type": "破折号总量偏高",
+      "message": "单章 '——' 共 11 组，处于 11-15 组区间",
+      "evidence": "共 11 组成对破折号",
+      "suggestion": "建议将破折号控制在 10 组以内"
+    },
+    {
+      "level": "WARNING",
+      "type": "破折号密度偏高",
+      "message": "每千字 '——' 5.4 组，超过 5 组建议上限",
+      "evidence": "11 组 / 2028 字 = 5.4 组/千字",
+      "suggestion": "每千字破折号建议控制在 5 组以内"
+    },
+    {
+      "level": "WARNING",
+      "type": "段落破折号偏多",
+      "message": "第 58 段出现 2 组 '——'，超过 1 组建议上限",
+      "evidence": "——第七章完——",
+      "suggestion": "每段建议不超过 1 组破折号，避免视觉疲劳"
+    },
+    {
+      "level": "WARNING",
+      "type": "连续段落破折号",
+      "message": "第 27 到第 29 段连续 3 段出现 '——'",
+      "evidence": "连续 3 段包含破折号，节奏可能过于急促",
+      "suggestion": "在连续段落中穿插无破折号的段落，调整叙事节奏"
+    }
+  ],
+  "issues": [
+    {
+      "level": "STRONG_WARNING",
+      "type": "破折号总量偏高",
+      "message": "单章 '——' 共 11 组，处于 11-15 组区间"
+    },
+    {
+      "level": "WARNING",
+      "type": "破折号密度偏高",
+      "message": "每千字 '——' 5.4 组，超过 5 组建议上限"
+    },
+    {
+      "level": "WARNING",
+      "type": "段落破折号偏多",
+      "message": "第 58 段出现 2 组 '——'，超过 1 组建议上限"
+    },
+    {
+      "level": "WARNING",
+      "type": "连续段落破折号",
+      "message": "第 27 到第 29 段连续 3 段出现 '——'"
+    }
+  ]
+}

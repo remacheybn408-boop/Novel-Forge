@@ -1,0 +1,108 @@
+{
+  "status": "FAIL",
+  "score": 61,
+  "stats": {
+    "chapter_no": 13,
+    "word_count": 2918,
+    "total_dashes": 80,
+    "dash_pairs": 20,
+    "dash_single": 0,
+    "ellipsis_count": 0,
+    "exclamation_count": 0,
+    "paragraphs": 37,
+    "dash_classification": {
+      "解释型": 6,
+      "插入型": 12,
+      "悬念型": 2,
+      "对话拖音/喜剧型": 37
+    }
+  },
+  "findings": [
+    {
+      "level": "FAIL",
+      "type": "破折号总量超标",
+      "message": "单章 '——' 共 20 组，超过 15 组上限",
+      "evidence": "共 20 组成对破折号",
+      "suggestion": "大幅削减破折号使用，或拆分章节"
+    },
+    {
+      "level": "WARNING",
+      "type": "破折号密度偏高",
+      "message": "每千字 '——' 6.9 组，超过 5 组建议上限",
+      "evidence": "20 组 / 2918 字 = 6.9 组/千字",
+      "suggestion": "每千字破折号建议控制在 5 组以内"
+    },
+    {
+      "level": "WARNING",
+      "type": "段落破折号偏多",
+      "message": "第 37 段出现 2 组 '——'，超过 1 组建议上限",
+      "evidence": "——第十三章完——",
+      "suggestion": "每段建议不超过 1 组破折号，避免视觉疲劳"
+    },
+    {
+      "level": "WARNING",
+      "type": "连续段落破折号",
+      "message": "第 5 到第 7 段连续 3 段出现 '——'",
+      "evidence": "连续 3 段包含破折号，节奏可能过于急促",
+      "suggestion": "在连续段落中穿插无破折号的段落，调整叙事节奏"
+    },
+    {
+      "level": "WARNING",
+      "type": "连续段落破折号",
+      "message": "第 8 到第 10 段连续 3 段出现 '——'",
+      "evidence": "连续 3 段包含破折号，节奏可能过于急促",
+      "suggestion": "在连续段落中穿插无破折号的段落，调整叙事节奏"
+    },
+    {
+      "level": "WARNING",
+      "type": "连续段落破折号",
+      "message": "第 19 到第 21 段连续 3 段出现 '——'",
+      "evidence": "连续 3 段包含破折号，节奏可能过于急促",
+      "suggestion": "在连续段落中穿插无破折号的段落，调整叙事节奏"
+    },
+    {
+      "level": "WARNING",
+      "type": "连续段落破折号",
+      "message": "第 29 到第 31 段连续 3 段出现 '——'",
+      "evidence": "连续 3 段包含破折号，节奏可能过于急促",
+      "suggestion": "在连续段落中穿插无破折号的段落，调整叙事节奏"
+    }
+  ],
+  "issues": [
+    {
+      "level": "FAIL",
+      "type": "破折号总量超标",
+      "message": "单章 '——' 共 20 组，超过 15 组上限"
+    },
+    {
+      "level": "WARNING",
+      "type": "破折号密度偏高",
+      "message": "每千字 '——' 6.9 组，超过 5 组建议上限"
+    },
+    {
+      "level": "WARNING",
+      "type": "段落破折号偏多",
+      "message": "第 37 段出现 2 组 '——'，超过 1 组建议上限"
+    },
+    {
+      "level": "WARNING",
+      "type": "连续段落破折号",
+      "message": "第 5 到第 7 段连续 3 段出现 '——'"
+    },
+    {
+      "level": "WARNING",
+      "type": "连续段落破折号",
+      "message": "第 8 到第 10 段连续 3 段出现 '——'"
+    },
+    {
+      "level": "WARNING",
+      "type": "连续段落破折号",
+      "message": "第 19 到第 21 段连续 3 段出现 '——'"
+    },
+    {
+      "level": "WARNING",
+      "type": "连续段落破折号",
+      "message": "第 29 到第 31 段连续 3 段出现 '——'"
+    }
+  ]
+}

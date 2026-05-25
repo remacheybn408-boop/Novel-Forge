@@ -1,0 +1,72 @@
+{
+  "status": "WARNING",
+  "score": 84,
+  "stats": {
+    "chapter_no": 6,
+    "word_count": 1772,
+    "total_dashes": 30,
+    "dash_pairs": 7,
+    "dash_single": 0,
+    "ellipsis_count": 0,
+    "exclamation_count": 0,
+    "paragraphs": 42,
+    "dash_classification": {
+      "解释型": 2,
+      "插入型": 3,
+      "悬念型": 3,
+      "对话拖音/喜剧型": 11
+    }
+  },
+  "findings": [
+    {
+      "level": "WARNING",
+      "type": "破折号总量偏多",
+      "message": "单章 '——' 共 7 组，超过 6 组建议上限",
+      "evidence": "共 7 组成对破折号",
+      "suggestion": "可适当减少破折号，控制在 6 组以内为佳"
+    },
+    {
+      "level": "WARNING",
+      "type": "段落破折号偏多",
+      "message": "第 18 段出现 2 组 '——'，超过 1 组建议上限",
+      "evidence": "赵二河先开口，把每个人最近被加的任务报了一遍。报完之后他总结：韩烈在测试。他在测试我们五个能不能撑住。但有一件事很奇怪——他加任务的时间，是交叉的。铁牛重的时候...",
+      "suggestion": "每段建议不超过 1 组破折号，避免视觉疲劳"
+    },
+    {
+      "level": "WARNING",
+      "type": "段落破折号偏多",
+      "message": "第 42 段出现 2 组 '——'，超过 1 组建议上限",
+      "evidence": "——第六章完——",
+      "suggestion": "每段建议不超过 1 组破折号，避免视觉疲劳"
+    },
+    {
+      "level": "WARNING",
+      "type": "连续段落破折号",
+      "message": "第 33 到第 35 段连续 3 段出现 '——'",
+      "evidence": "连续 3 段包含破折号，节奏可能过于急促",
+      "suggestion": "在连续段落中穿插无破折号的段落，调整叙事节奏"
+    }
+  ],
+  "issues": [
+    {
+      "level": "WARNING",
+      "type": "破折号总量偏多",
+      "message": "单章 '——' 共 7 组，超过 6 组建议上限"
+    },
+    {
+      "level": "WARNING",
+      "type": "段落破折号偏多",
+      "message": "第 18 段出现 2 组 '——'，超过 1 组建议上限"
+    },
+    {
+      "level": "WARNING",
+      "type": "段落破折号偏多",
+      "message": "第 42 段出现 2 组 '——'，超过 1 组建议上限"
+    },
+    {
+      "level": "WARNING",
+      "type": "连续段落破折号",
+      "message": "第 33 到第 35 段连续 3 段出现 '——'"
+    }
+  ]
+}

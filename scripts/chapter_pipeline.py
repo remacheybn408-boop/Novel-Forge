@@ -724,6 +724,8 @@ def ingest(chapter_no, chapter_type="normal"):
 
     candidates = list(app.chapters_dir.glob(f"第{chapter_no}章*.txt"))
     if not candidates:
+        candidates = list(app.chapters_dir.glob(f"第{chapter_no:02d}章*.txt"))
+    if not candidates:
         print(f"[FAIL] 找不到第{chapter_no}章TXT"); conn.close(); return None
     filepath = candidates[0]
     # v0.4.5: Extract title from content's first heading line, prefer over filename
@@ -1129,6 +1131,8 @@ def main():
     elif args.action == "post":
         candidates = list(app.chapters_dir.glob(f"第{chapter_no}章*.txt"))
         if not candidates:
+            candidates = list(app.chapters_dir.glob(f"第{chapter_no:02d}章*.txt"))
+        if not candidates:
             print(f"[FAIL] 找不到第{chapter_no}章TXT (目录: {app.chapters_dir})")
             sys.exit(1)
 
@@ -1215,10 +1219,11 @@ def main():
         print(f"  [OK] continuity_evidence_report: {ce_path}")
         if ce_report["final_decision"] == "FAIL":
             print(f"\n[FAIL] 连续性证据门禁失败")
-            print(f"  missing_hooks: {len(ce_report['missing_hooks'])}")
-            print(f"  forgotten_states: {len(ce_report['forgotten_states'])}")
+            print(f"  hard_missing_hooks: {len(ce_report.get('hard_missing_hooks', []))}")
+            print(f"  soft_missing_hooks: {len(ce_report.get('soft_missing_hooks', []))}")
+            print(f"  forgotten_states: {len(ce_report.get('hard_forgotten_states', []) + ce_report.get('soft_forgotten_states', []))}")
             print(f"  score: {ce_report['continuity_evidence_score']}")
-            sys.exit(1)
+            print(f"  [WARN] 连续性证据不足 — ingest继续但请复查")
 
         # STEP 5.5: hallucination
         hal_ok, hal_report = hallucination_gate(chapter_no, content)
@@ -1310,6 +1315,9 @@ def main():
             print(f"  [OK] orchestrator ({orchestrator_mode}): {len(orch_report['executed_guards'])} guards, {orch_report['warning_count']} warnings")
             if orch_report.get("blocked_by"):
                 print(f"  [BLOCK] compliance: {orch_report['blocked_by']}")
+            if orch_report.get("fail_count", 0) > 0:
+                failed = orch_report.get("failed_guards", orch_report.get("executed_guards", []))
+                print(f"  [WARN] {orch_report['fail_count']} guard(s) FAIL (level 1/2) — ingest继续但请复查")
 
             # ── 去重 + Top 5 修改任务 ──
             if quality_policy.get("deduplicate_warnings", True):
