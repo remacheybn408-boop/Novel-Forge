@@ -1,6 +1,6 @@
 # Novel Pipeline - Write Engine v0.5.0
 
-[![Test](https://github.com/remacheybn408-boop/novel-pipeline-write-engine/actions/workflows/test.yml/badge.svg?branch=v0.5.0)](https://github.com/remacheybn408-boop/novel-pipeline-write-engine/actions/workflows/test.yml?query=branch%3Av0.5.0)
+[![Test](https://github.com/remacheybn408-boop/novel-pipeline-write-engine/actions/workflows/test.yml/badge.svg?branch=master)](https://github.com/remacheybn408-boop/novel-pipeline-write-engine/actions/workflows/test.yml)
 
 Novel Pipeline Write Engine 是一个轻量小说工程化写作流水线，专注长篇小说的连续性、角色口吻、AI 腔检查、防幻觉、写前任务卡和写后质量报告。
 
