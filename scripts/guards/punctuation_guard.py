@@ -24,14 +24,14 @@ from typing import Dict, List, Optional, Tuple
 # 配置
 # ---------------------------------------------------------------------------
 
-# 长破折号 "——" (成对出现算 1 组)
-DASH_PAIR_PASS = (0, 6)       # 0-6 组 PASS
-DASH_PAIR_WARN = 7            # >=7 组 WARNING
-DASH_PAIR_STRONG = 11         # >=11 组 STRONG WARNING
-DASH_PAIR_FAIL = 16           # >=16 组 FAIL
+# 长破折号 "——" (成对出现算 1 组) — v0.5.5 收紧：用户偏好极低密度
+DASH_PAIR_PASS = (0, 2)       # 0-2 组 PASS
+DASH_PAIR_WARN = 3            # >=3 组 WARNING
+DASH_PAIR_STRONG = 5          # >=5 组 STRONG WARNING
+DASH_PAIR_FAIL = 8            # >=8 组 FAIL
 
-DASH_PER_KW_WARN = 5          # 每千字 >5 组 WARNING
-DASH_PER_KW_FAIL = 8          # 每千字 >8 组 FAIL
+DASH_PER_KW_WARN = 2          # 每千字 >2 组 WARNING
+DASH_PER_KW_FAIL = 4          # 每千字 >4 组 FAIL
 
 DASH_SAME_PARA_WARN = 2       # 同一段内 >=2 组 WARNING
 DASH_SAME_PARA_FAIL = 3       # 同一段内 >=3 组 FAIL
@@ -254,7 +254,7 @@ def _build_findings(text: str, paragraphs: List[str], word_cnt: int,
             "type": "破折号总量偏高",
             "message": f"单章 '——' 共 {dash_pairs} 组，处于 {DASH_PAIR_STRONG}-{DASH_PAIR_FAIL-1} 组区间",
             "evidence": f"共 {dash_pairs} 组成对破折号",
-            "suggestion": "建议将破折号控制在 10 组以内",
+            "suggestion": "建议将破折号控制在 4 组以内",
         })
     elif dash_pairs >= DASH_PAIR_WARN:
         findings.append({
@@ -262,7 +262,7 @@ def _build_findings(text: str, paragraphs: List[str], word_cnt: int,
             "type": "破折号总量偏多",
             "message": f"单章 '——' 共 {dash_pairs} 组，超过 {DASH_PAIR_WARN - 1} 组建议上限",
             "evidence": f"共 {dash_pairs} 组成对破折号",
-            "suggestion": "可适当减少破折号，控制在 6 组以内为佳",
+            "suggestion": "可适当减少破折号，控制在 2 组以内为佳",
         })
 
     # --- 每千字密度 ---
@@ -282,7 +282,7 @@ def _build_findings(text: str, paragraphs: List[str], word_cnt: int,
                 "type": "破折号密度偏高",
                 "message": f"每千字 '——' {per_kw:.1f} 组，超过 {DASH_PER_KW_WARN} 组建议上限",
                 "evidence": f"{dash_pairs} 组 / {word_cnt} 字 = {per_kw:.1f} 组/千字",
-                "suggestion": "每千字破折号建议控制在 5 组以内",
+                "suggestion": "每千字破折号建议控制在 2 组以内",
             })
 
     # --- 段落规则 ---
