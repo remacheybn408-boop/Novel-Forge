@@ -176,7 +176,7 @@ def _standalone_main():
     lines.append("")
 
     lines.append("---")
-    lines.append(f"*由 task_card_builder v0.5.0 生成*")
+    lines.append(f"*由 task_card_builder {get_version()} 生成*")
     lines.append("")
 
     markdown = "\n".join(lines)

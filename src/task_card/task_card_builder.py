@@ -295,7 +295,7 @@ def build_task_card(chapter_no: int, config: dict, slug: str) -> str:
     lines.append("- 是否有 \"追读钩子\" 让读者想翻下一章？")
     lines.append("")
     lines.append("---")
-    lines.append(f"*由 task_card_builder v0.5.0 自动生成*")
+    lines.append(f"*由 task_card_builder {get_version()} 自动生成*")
     lines.append("")
 
     conn.close()

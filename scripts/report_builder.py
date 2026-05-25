@@ -141,7 +141,7 @@ def _standalone_main():
 
     # Build simple HTML
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    version = "v0.5.0"
+    from version import get_version; version = get_version()
     project_name = "Novel Pipeline Write Engine"
 
     chapter_rows = ""

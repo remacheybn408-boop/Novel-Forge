@@ -426,8 +426,12 @@ def run_meme_pack_check(
                 if fp.suffix == ".json":
                     try:
                         raw = json.loads(fp.read_text(encoding="utf-8"))
+                        ptype = str(raw.get("type", "")).lower()
+                        # Only load dialect-type packs; skip register/meme/english voice packs
+                        if "dialect" not in ptype and "方言" not in ptype:
+                            continue
                         pack_data = {"pack_id": raw.get("pack_id", fp.stem),
-                                    "type": raw.get("type", ""),
+                                    "type": raw.get("type", "dialect"),
                                     "markers": raw.get("allowed_markers", raw.get("markers", [])),
                                     "max_density_per_1000_chars": raw.get("max_density_per_1000_chars", 5)}
                     except Exception:

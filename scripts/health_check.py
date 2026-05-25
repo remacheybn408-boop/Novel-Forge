@@ -55,7 +55,7 @@ def run_via_status_module() -> int:
 # Option 2: Direct implementation
 # ═══════════════════════════════════════════════════
 
-EXPECTED_VERSION = "v0.5.0"
+from version import get_version as _gv; EXPECTED_VERSION = _gv()
 
 CRITICAL_CHECKS = {
     "python_version",
@@ -311,7 +311,8 @@ def check_release_notes() -> bool:
 def run_direct_checks() -> int:
     """Run all health checks directly."""
     print("=" * 56)
-    print("  Novel Pipeline Write Engine — Health Check v0.5.0")
+    from version import get_version
+    print(f"  Novel Pipeline Write Engine — Health Check {get_version()}")
     print("  Project:", str(PROJECT_ROOT))
     print("=" * 56)
     print()

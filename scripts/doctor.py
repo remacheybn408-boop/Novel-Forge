@@ -12,6 +12,7 @@ doctor.py — 环境诊断工具 v0.5.0
 """
 import sys, os, json, sqlite3
 from pathlib import Path
+from version import get_version
 
 PROJECT_ROOT = Path(__file__).parent.parent
 
@@ -23,7 +24,7 @@ def check(desc, ok, detail=""):
 
 
 def main():
-    print("Novel Pipeline - Write Engine v0.5.0")
+    print(f"Novel Pipeline - Write Engine {get_version()}")
     print("环境诊断 (doctor.py)")
     print("=" * 50)
 

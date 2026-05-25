@@ -25,4 +25,4 @@ def test_guard_registry_validation_passes():
     from guard_registry import validate_guard_registry
     result = validate_guard_registry()
     assert result["ok"], f"Registry validation failed: {result['errors']}"
-    assert result["registered_count"] == 18  # now includes punctuation_guard
+    assert result["registered_count"] == 21  # 18 core + 3 v0.5.5 new guards

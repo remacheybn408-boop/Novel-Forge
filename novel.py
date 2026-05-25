@@ -13,6 +13,7 @@ Usage:
 """
 
 import sys
+from version import get_version
 import json
 from pathlib import Path
 from datetime import datetime
@@ -31,7 +32,8 @@ if str(SRC_GUARDS_DIR) not in sys.path:
 def cmd_status():
     """Run doctor.py for environment diagnostics."""
     print("=" * 60)
-    print("  Novel Pipeline - Write Engine v0.5.0")
+    v = get_version()
+    print(f"  Novel Pipeline - Write Engine {v}")
     print("  Status Check")
     print("=" * 60)
     print()
@@ -92,7 +94,8 @@ def cmd_status():
 def cmd_demo():
     """Run a demo pipeline check."""
     print("=" * 60)
-    print("  Novel Pipeline - Write Engine v0.5.0")
+    v = get_version()
+    print(f"  Novel Pipeline - Write Engine {v}")
     print("  Demo Run")
     print("=" * 60)
     print()
@@ -155,7 +158,8 @@ def cmd_demo():
 def cmd_report():
     """Show most recent guard reports and exports."""
     print("=" * 60)
-    print("  Novel Pipeline - Write Engine v0.5.0")
+    v = get_version()
+    print(f"  Novel Pipeline - Write Engine {v}")
     print("  Reports")
     print("=" * 60)
     print()
@@ -203,7 +207,8 @@ def cmd_report():
 def cmd_guards():
     """List registered guards and their status."""
     print("=" * 60)
-    print("  Novel Pipeline - Write Engine v0.5.0")
+    v = get_version()
+    print(f"  Novel Pipeline - Write Engine {v}")
     print("  Guard Registry")
     print("=" * 60)
     print()
@@ -277,7 +282,7 @@ def cmd_check(file_path: str):
         vp_dir = str(PROJECT_ROOT / "voice_packs")
         vp_report = run_voice_pack_check(content, chapter_no=1, voice_packs_dir=vp_dir)
         status = vp_report["status"]
-        issues = len(vp_report.get("issues", []))
+        issues = len(vp_report.get("issues", [])) or len(vp_report.get("warnings", []))
         print(f"  Status: {status} ({issues} issues)")
         extra = vp_report.get("extra_checks", {})
         for check_name, check_issues in extra.items():
@@ -341,7 +346,8 @@ def cmd_wc(file_path: str = None):
 def cmd_init():
     """Initialize project: create directories, copy config, init DB."""
     print("=" * 60)
-    print("  Novel Pipeline - Write Engine v0.5.0")
+    v = get_version()
+    print(f"  Novel Pipeline - Write Engine {v}")
     print("  Initialize Project")
     print("=" * 60)
     print()
@@ -569,7 +575,7 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="Novel Pipeline - Write Engine v0.5.0 CLI",
+        description=f"Novel Pipeline - Write Engine {get_version()} CLI",
     )
     sub = parser.add_subparsers(dest="command", help="Command to run")
 

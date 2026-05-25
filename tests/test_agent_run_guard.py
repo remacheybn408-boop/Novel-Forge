@@ -21,7 +21,7 @@ def _run_guard(report_dict):
             os.makedirs(gs_dir, exist_ok=True)
         with open(gs_path, 'w', encoding='utf-8') as gs:
             json.dump({"overall_status": "PASS", "chapter_no": report_dict.get("chapter_no", 1)}, gs)
-    result = subprocess.run([sys.executable, str(GUARD_SCRIPT), tmp], capture_output=True, text=True)
+    result = subprocess.run([sys.executable, str(GUARD_SCRIPT), tmp], capture_output=True, text=True, timeout=15)
     Path(tmp).unlink()
     if gs_path and os.path.exists(gs_path):
         os.remove(gs_path)

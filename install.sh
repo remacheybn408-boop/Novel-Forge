@@ -2,7 +2,8 @@
 set -e
 
 echo "============================================"
-echo "  Novel Pipeline - Write Engine v0.5.5"
+VER=$(cat VERSION 2>/dev/null || echo "v0.5.5")
+echo "  Novel Pipeline - Write Engine $VER"
 echo "  Install (Mac / Linux)"
 echo "============================================"
 echo ""

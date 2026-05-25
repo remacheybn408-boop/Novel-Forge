@@ -17,7 +17,8 @@ Checks:
 Output: clean terminal text with [OK] [WARN] [MISS] markers. Exit code 0.
 """
 
-import sys
+from version import get_version
+import json
 import os
 import json
 import sqlite3
@@ -25,7 +26,7 @@ import re
 from pathlib import Path
 
 
-EXPECTED_VERSION = "v0.5.0"  # This is what we are building toward
+from version import get_version as _gv; EXPECTED_VERSION = _gv()  # This is what we are building toward
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
 
@@ -220,7 +221,7 @@ def check_readme_version() -> bool:
 
 def main() -> int:
     print("=" * 56)
-    print("  Novel Pipeline Write Engine — Health Check v0.5.0")
+    print(f"  Novel Pipeline Write Engine — Health Check {get_version()}")
     print("  Project:", str(PROJECT_ROOT))
     print("=" * 56)
     print()

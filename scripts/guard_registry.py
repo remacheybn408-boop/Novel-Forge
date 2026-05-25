@@ -17,8 +17,11 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-# Ensure the project root is on sys.path so guards can import each other
+# Ensure the project root and scripts/ are on sys.path
 _script_dir = Path(__file__).resolve().parent
+_project_root = _script_dir.parent
+if str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
 if str(_script_dir) not in sys.path:
     sys.path.insert(0, str(_script_dir))
 if str(_script_dir / "guards") not in sys.path:
@@ -53,6 +56,9 @@ GUARD_LEVELS = {
     "style_variation_guard": 2,
     "compliance_selfcheck_guard": 3,
     "punctuation_guard": 2,
+    "reader_pull_guard": 2,
+    "voice_pack_guard": 2,
+    "meme_pack_guard": 2,
 }
 
 LEVEL2_CANNOT_FAIL = {k for k, v in GUARD_LEVELS.items() if v == 2}
@@ -69,6 +75,7 @@ MODE_GUARDS = {
         "show_dont_tell_guard", "character_voice_guard",
         "concrete_anchor_guard", "scene_causality_guard",
         "dialogue_naturalness_guard",
+        "reader_pull_guard", "voice_pack_guard", "meme_pack_guard",
     ],
     "submission": [
         "continuity_evidence_guard", "canon_evidence_guard",
@@ -80,6 +87,7 @@ MODE_GUARDS = {
         "editor_revision_guard", "concrete_anchor_guard",
         "scene_causality_guard", "dialogue_naturalness_guard",
         "style_variation_guard", "compliance_selfcheck_guard",
+        "reader_pull_guard", "voice_pack_guard", "meme_pack_guard",
     ],
 }
 
@@ -103,6 +111,9 @@ GUARD_RUNNERS = {
     "style_variation_guard":      ("style_variation_guard", "build_report"),
     "compliance_selfcheck_guard": ("compliance_selfcheck_guard", "run_compliance_selfcheck"),
     "punctuation_guard": ("punctuation_guard", "run_punctuation_check"),
+    "reader_pull_guard": ("src.guards.reader_pull_guard", "run_reader_pull_check"),
+    "voice_pack_guard": ("src.guards.voice_pack_guard", "run_voice_pack_check"),
+    "meme_pack_guard": ("src.guards.meme_pack_guard", "run_meme_pack_check"),
 }
 
 

@@ -17,7 +17,7 @@ def _run_verify(receipt_dict):
     with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, encoding='utf-8') as f:
         json.dump(receipt_dict, f)
         tmp = f.name
-    result = subprocess.run([sys.executable, str(VERIFY_SCRIPT), tmp], capture_output=True, text=True)
+    result = subprocess.run([sys.executable, str(VERIFY_SCRIPT), tmp], capture_output=True, text=True, timeout=15)
     Path(tmp).unlink()
     return result.returncode, result.stdout
 

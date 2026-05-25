@@ -4,7 +4,7 @@
 
 Novel Pipeline Write Engine 是一个轻量小说工程化写作流水线，专注长篇小说的连续性、角色口吻、AI 腔检查、防幻觉、写前任务卡和写后质量报告。
 
-> **当前版本：v0.5.5 — Stable & Easy Mode。** 统一入口 novel.py、健康检查 status、写前任务卡、Voice/Meme Pack 增强、Reader Pull 追读力门禁、HTML 只读报告。48 个测试文件，268 个测试用例，CI 已通过。
+> **当前版本：v0.5.5 — Stable & Easy Mode。** 统一入口 novel.py、健康检查 status、写前任务卡、Voice/Meme Pack 增强、Reader Pull 追读力门禁、HTML 只读报告。43 个测试文件，278 个测试用例。
 
 ---
 
@@ -198,7 +198,7 @@ novel-pipeline-write-engine/
 │   ├── demo_chapters/               ← Demo 章节样本
 │   └── demo_reports/                ← Demo 报告样本
 │
-├── tests/                           ← 48 个测试文件，268 个测试用例
+├── tests/                           ← 43 个测试文件，278 个测试用例
 ├── docs/                            ← 架构 / 规范 / 发布说明
 │   ├── releases/                    ← 历史版本发布说明
 │   └── skills/                      ← Agent 写作路由

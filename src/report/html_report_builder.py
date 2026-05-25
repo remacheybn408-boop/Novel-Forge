@@ -21,7 +21,9 @@ from datetime import datetime
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 DEFAULT_SLUG = "demo_novel"
 DEFAULT_CONFIG = PROJECT_ROOT / "config.json"
-VERSION = "v0.5.0"
+from pathlib import Path; import sys; _vdir = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(_vdir))
+from version import get_version; VERSION = get_version()
 PROJECT_NAME = "Novel Pipeline Write Engine"
 
 
@@ -109,7 +111,7 @@ def get_voice_pack_status() -> dict:
         total = 0
         for item in vp.iterdir():
             if item.is_dir():
-                sub_count = len(list(item.glob("*.yaml"))) + len(list(item.glob("*.yml")))
+                sub_count = len(list(item.glob("*.yaml"))) + len(list(item.glob("*.yml"))) + len(list(item.glob("*.json")))
                 categories.append({"name": item.name, "file_count": sub_count})
                 total += sub_count
             elif item.suffix in (".yaml", ".yml", ".md"):

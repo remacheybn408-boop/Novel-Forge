@@ -37,7 +37,7 @@ def safe_filename(title: str) -> str:
     """Strip punctuation from title for safe filenames."""
     import re
     # Remove Chinese/English punctuation but keep Chinese chars and alphanumeric
-    safe = re.sub(r'[，、。！？：；""''「」『』【】《》（）\s,\.!\?:;"\'\(\)\[\]<>]',
+    safe = re.sub(r'[，、。！？：；""''「」『』【】《》（）\s,.!?:;"\'()\[\]<>]',
                   '', title)
     return safe
 
