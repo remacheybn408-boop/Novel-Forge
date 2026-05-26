@@ -121,7 +121,7 @@ def cmd_doctor(detail=True):
 
 
 def cmd_demo():
-    """Create demo_novel, run pre -> post, then show report location."""
+    """Create demo_novel, activate outline, run pre -> post -> report -> export."""
     print("=" * 60)
     v = get_version()
     print(f"  Novel Pipeline - Write Engine {v}")
@@ -129,13 +129,29 @@ def cmd_demo():
     print("=" * 60)
     print()
 
+    import subprocess as _sp
+
+    # STEP 1: db init — ensure workspace initialized for outline manager
+    print("[STEP 1] Initializing workspace (db init)...")
+    db_init_result = _sp.run(
+        [sys.executable, str(PROJECT_ROOT / "novel.py"), "db", "init"],
+        cwd=str(PROJECT_ROOT), timeout=60, capture_output=True, text=True
+    )
+    if db_init_result.returncode == 0:
+        print("  [OK] db init completed")
+    elif db_init_result.stdout and "已经初始化" in db_init_result.stdout:
+        print("  [OK] workspace already initialized")
+    else:
+        print(f"  [WARN] db init returned {db_init_result.returncode}")
+
+    # STEP 2: Init project (config.json + DB schema + directories)
     cfg_path = PROJECT_ROOT / "config.json"
     if not cfg_path.exists():
-        print("[STEP 1] Initializing project...")
+        print("\n[STEP 2] Initializing project (config + DB + directories)...")
         cmd_init()
         print()
     else:
-        print("[STEP 1] config.json found.")
+        print("\n[STEP 2] config.json found. Checking database...")
 
     cfg_data = _load_project_config()
     db_path = resolve_path(PROJECT_ROOT, cfg_data.get("db_path", "./data/novel_memory.db"))
@@ -151,7 +167,8 @@ def cmd_demo():
     vol_dir = novels_root / slug / "第01卷"
     vol_dir.mkdir(parents=True, exist_ok=True)
 
-    print("\n[STEP 2] Creating demo chapter...")
+    # STEP 3: Create demo chapter + outline.txt
+    print("\n[STEP 3] Creating demo chapter...")
     paragraphs = [
         "第1章 开篇",
         "清晨的钟声从青云宗山腰传来，像一根细线，把外门弟子从浅睡里一一拽醒。李明远坐在窄床边，先没有急着穿鞋，而是低头看向掌心那枚旧玉佩。玉佩的边缘有一道细裂，裂纹像凝住的水波，三年来从未扩大，也从未消失。",
@@ -183,7 +200,8 @@ def cmd_demo():
     )
     print(f"  [OK] {outline_file.name}")
 
-    print("\n[STEP 3] Registering demo_novel in database...")
+    # STEP 4: Register demo_novel in database
+    print("\n[STEP 4] Registering demo_novel in database...")
     try:
         import sqlite3
         db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -200,10 +218,40 @@ def cmd_demo():
         print(f"  [ERROR] database registration failed: {e}")
         return 1
 
-    import subprocess as _sp
-    print("\n[STEP 4] Running pre-write gate...", flush=True)
-    pre_result = _sp.run([sys.executable, str(PROJECT_ROOT / "novel.py"), "pre", "1", "--slug", slug],
-                         cwd=str(PROJECT_ROOT), timeout=180, capture_output=True, text=True)
+    # STEP 5: Activate outline — register outline.txt with outline manager (P0-1 FIX)
+    print("\n[STEP 5] Activating demo outline...", flush=True)
+    outline_result = _sp.run(
+        [sys.executable, str(PROJECT_ROOT / "novel.py"), "outline", "add", str(outline_file),
+         "--title", title, "--genre", cfg_data.get("default_genre", "xianxia")],
+        cwd=str(PROJECT_ROOT), timeout=60, capture_output=True, text=True
+    )
+    if outline_result.stdout:
+        print(outline_result.stdout, end="")
+    if outline_result.stderr:
+        print(outline_result.stderr, end="", file=sys.stderr)
+    if outline_result.returncode == 0:
+        print("  [OK] demo outline activated")
+    elif outline_result.stdout and ("已经初始化" in outline_result.stdout or "already initialized" in outline_result.stdout):
+        print("  [OK] demo outline activated (already present)")
+    else:
+        # outline add may succeed even with non-zero if outline already exists
+        print(f"  [INFO] outline add exited {outline_result.returncode} — checking active state...")
+        # fallback: try direct activation via outline manager
+        try:
+            mgr = _get_outline_manager()
+            if mgr.has_active_outline():
+                print("  [OK] demo outline is active")
+            else:
+                print("  [WARN] outline may not be active — pre may fail")
+        except Exception:
+            print("  [WARN] could not verify outline activation")
+
+    # STEP 6: Pre-write gate
+    print("\n[STEP 6] Running pre-write gate...", flush=True)
+    pre_result = _sp.run(
+        [sys.executable, str(PROJECT_ROOT / "novel.py"), "pre", "1", "--slug", slug],
+        cwd=str(PROJECT_ROOT), timeout=180, capture_output=True, text=True
+    )
     if pre_result.stdout:
         print(pre_result.stdout, end="")
     if pre_result.stderr:
@@ -211,10 +259,14 @@ def cmd_demo():
     if pre_result.returncode != 0:
         print(f"  [FAIL] pre returned exit code {pre_result.returncode}")
         return pre_result.returncode
+    print("  [OK] pre completed")
 
-    print("\n[STEP 5] Running post-write guards + ingest...", flush=True)
-    post_result = _sp.run([sys.executable, str(PROJECT_ROOT / "novel.py"), "post", "1", "--slug", slug],
-                          cwd=str(PROJECT_ROOT), timeout=300, capture_output=True, text=True)
+    # STEP 7: Post-write guards + ingest
+    print("\n[STEP 7] Running post-write guards + ingest...", flush=True)
+    post_result = _sp.run(
+        [sys.executable, str(PROJECT_ROOT / "novel.py"), "post", "1", "--slug", slug],
+        cwd=str(PROJECT_ROOT), timeout=300, capture_output=True, text=True
+    )
     if post_result.stdout:
         print(post_result.stdout, end="")
     if post_result.stderr:
@@ -222,10 +274,39 @@ def cmd_demo():
     if post_result.returncode != 0:
         print(f"  [FAIL] post returned exit code {post_result.returncode}")
         return post_result.returncode
+    print("  [OK] post completed")
 
-    print("\n[STEP 6] Demo complete!")
-    print("  Report: python novel.py report")
-    print(f"  Chapter: {chapter_file}")
+    # STEP 8: Report
+    print("\n[STEP 8] Generating report...", flush=True)
+    report_result = _sp.run(
+        [sys.executable, str(PROJECT_ROOT / "novel.py"), "report"],
+        cwd=str(PROJECT_ROOT), timeout=60, capture_output=True, text=True
+    )
+    if report_result.stdout:
+        print(report_result.stdout, end="")
+    if report_result.stderr:
+        print(report_result.stderr, end="", file=sys.stderr)
+    print("  [OK] report generated")
+
+    # STEP 9: Export
+    print("\n[STEP 9] Exporting demo novel...", flush=True)
+    export_result = _sp.run(
+        [sys.executable, str(PROJECT_ROOT / "novel.py"), "export", "--slug", slug, "--format", "md"],
+        cwd=str(PROJECT_ROOT), timeout=60, capture_output=True, text=True
+    )
+    if export_result.stdout:
+        print(export_result.stdout, end="")
+    if export_result.stderr:
+        print(export_result.stderr, end="", file=sys.stderr)
+    if export_result.returncode == 0:
+        print("  [OK] export generated")
+    else:
+        print(f"  [WARN] export returned {export_result.returncode}")
+
+    print("\n  Demo complete!")
+    print(f"  Chapter:  {chapter_file}")
+    print(f"  Report:   python novel.py report")
+    print(f"  Export:   python novel.py export --slug {slug}")
     print()
     print("=" * 60)
     print("  Demo pipeline passed.")
@@ -661,29 +742,119 @@ def cmd_review(chapter_no: str = None, slug: str = None, volume_no: str = None):
 def cmd_export(slug: str = None, fmt: str = "md"):
     """Export novel to a single file."""
     if not slug:
-        print("Usage: python novel.py export --slug <novel_slug> [--format txt|md]")
+        print("用法: python novel.py export --slug <小说标识> [--format txt|md]")
+        print()
+        print("  示例:")
+        print("    python novel.py export --slug demo_novel --format md")
+        print("    python novel.py export --slug demo_novel --format txt")
         return 1
     fmt = fmt or "md"
     ext = ".txt" if fmt == "txt" else ".md"
-    print(f"  Exporting novel '{slug}' as {fmt}...")
+    print(f"  正在导出小说「{slug}」，格式: {fmt}...")
+    import subprocess
     try:
-        import subprocess
         args = [sys.executable, str(SCRIPTS_DIR / "export_novel.py"),
                 "--slug", slug, "--config", str(PROJECT_ROOT / "config.json"), "--format", fmt,
                 "--output", str(resolve_path(PROJECT_ROOT, _load_project_config().get("exports_root", "./exports")) / f"{slug}_full{ext}")]
-        result = subprocess.run(args, cwd=str(PROJECT_ROOT), timeout=60)
+        result = subprocess.run(args, cwd=str(PROJECT_ROOT), timeout=60, capture_output=True, text=True)
+        if result.stdout:
+            print(result.stdout.strip())
+        if result.stderr:
+            print(result.stderr.strip(), file=sys.stderr)
         if result.returncode == 0:
-            print(f"  [OK] Exported to exports/{slug}_full{ext}")
+            print(f"  ✅ 已导出到 exports/{slug}_full{ext}")
+        else:
+            print(f"  ⚠️ 导出未完成（退出码: {result.returncode}）")
         return result.returncode
-    except Exception as e:
-        print(f"  [ERROR] {e}")
+    except subprocess.TimeoutExpired:
+        print(f"  ⏱️ 导出超时，请检查章节数量是否过多。")
         return 1
+    except Exception as e:
+        print(f"  ❌ 导出失败: {e}")
+        return 1
+
+
+def _cmd_agents_list(args):
+    """List all available agent configurations with metadata."""
+    import json as _json
+    import yaml as _yaml
+
+    agents_dir = PROJECT_ROOT / "configs" / "jury" / "agents"
+    mode_filter = getattr(args, "mode", None) or ""
+
+    if not agents_dir.exists():
+        print("  No agent configurations found.")
+        print(f"  Expected: {agents_dir}")
+        return 1
+
+    agent_files = sorted(agents_dir.glob("*.yaml"))
+    if not agent_files:
+        print("  No agent YAML files found.")
+        return 0
+
+    print("=" * 70)
+    print(f"  Agent 陪审团 — {len(agent_files)} 个审查代理")
+    print("=" * 70)
+    print()
+
+    # Load jury mode configs to show per-mode agents
+    modes_dir = PROJECT_ROOT / "configs" / "jury"
+    mode_agents = {}
+    for mf in sorted(modes_dir.glob("jury.*.yaml")):
+        try:
+            mode_data = _yaml.safe_load(mf.read_text(encoding="utf-8"))
+            mode_name = mode_data.get("mode", mf.stem.replace("jury.", ""))
+            mode_agents[mode_name] = mode_data.get("agents", [])
+        except Exception:
+            pass
+
+    for af in agent_files:
+        try:
+            data = _yaml.safe_load(af.read_text(encoding="utf-8"))
+        except Exception:
+            print(f"  {af.stem:30s} [无法解析]")
+            continue
+
+        agent_id = data.get("agent_id", af.stem)
+        name = data.get("name", agent_id)
+        category = data.get("category", "unknown")
+        risk = data.get("risk_level", "medium")
+        enabled = data.get("default_enabled", True)
+        weight = data.get("weight", 1.0)
+        desc = data.get("description", "")
+        if len(desc) > 80:
+            desc = desc[:77] + "..."
+
+        # Which modes include this agent?
+        in_modes = [m for m, ags in mode_agents.items() if agent_id in ags]
+
+        status_icon = "✓" if enabled else "○"
+        risk_icon = {"high": "🔴", "medium": "🟡", "low": "🟢"}.get(risk, "⚪")
+
+        print(f"  {status_icon} {risk_icon} {name:<24s} [{agent_id}]")
+        print(f"     类别: {category:<15s} 权重: {weight:.1f}  模式: {','.join(in_modes) if in_modes else '(未分配)'}")
+        print(f"     {desc}")
+        print()
+
+    print("-" * 70)
+    print(f"  共 {len(agent_files)} 个代理   ✓=默认启用  ○=需手动启用")
+    print(f"  🔴=高风险  🟡=中风险  🟢=低风险")
+    print("=" * 70)
+    return 0
 
 
 def cmd_agents(args):
     """Multi-agent review board."""
-    if args.agents_action != "review":
-        print("Usage: python novel.py agents review <chapter_no> [--mode light|full]")
+    action = getattr(args, "agents_action", None)
+
+    # agents list — show all available agents
+    if action == "list":
+        return _cmd_agents_list(args)
+
+    if action != "review":
+        print("Usage: python novel.py agents {list|review}")
+        print("  list                     — 列出所有可用审查代理")
+        print("  review <N> [--mode ...]  — 运行多Agent审稿")
         return 1
     chapter_no = getattr(args, "chapter_no", None)
     if not chapter_no:
@@ -824,6 +995,12 @@ def cmd_story(args):
             return 1
         chapter_no = int(getattr(args, "chapter_no", "1") or "1")
         
+        # P0-2: Verify contract exists before allowing commit
+        contract_path = PROJECT_ROOT / ".story" / "chapters" / f"chapter_{chapter_no}_contract.json"
+        if not contract_path.exists():
+            print(f"  [FAIL] 第{chapter_no}章没有合同，不能提交。请先执行：python novel.py story contract {chapter_no}")
+            return 1
+
         # Read real chapter file — use config's novels_root
         novels_dir = PROJECT_ROOT / "novels"
         if (PROJECT_ROOT / "config.json").exists():
@@ -1234,13 +1411,24 @@ def cmd_db(args):
     elif action == "use":
         return _db_use(getattr(args, "slot_id", ""))
     elif action == "delete":
-        return _db_delete(getattr(args, "slot_id", ""))
+        return _db_delete(
+            getattr(args, "slot_id", ""),
+            yes=getattr(args, "yes", False),
+        )
+    elif action == "trash":
+        return _db_trash()
     elif action == "restore":
-        return _db_restore(getattr(args, "slot_id", ""), getattr(args, "backup_id", None))
+        return _db_restore(
+            getattr(args, "slot_id", ""),
+            backup_id=getattr(args, "backup_id", None),
+            from_trash=getattr(args, "from_trash", False),
+        )
+    elif action == "purge":
+        return _db_purge(getattr(args, "trash_name", None))
     elif action == "backup":
         return _db_backup(getattr(args, "slot", None))
     else:
-        print("用法: python novel.py db {init|list|current|info|new|use|delete|restore|backup}")
+        print("用法: python novel.py db {init|list|current|info|new|use|delete|trash|restore|purge|backup}")
         print()
         print("  init         初始化 workspace 目录结构")
         print("  list         列出所有 DB slot")
@@ -1248,8 +1436,10 @@ def cmd_db(args):
         print("  info         显示当前 slot 详细信息")
         print("  new          创建新 DB slot (--name <名称>)")
         print("  use          切换到指定 DB slot")
-        print("  delete       删除指定 DB slot")
-        print("  restore      从备份恢复 DB slot")
+        print("  delete       安全删除 DB slot (移至回收站, --yes 确认)")
+        print("  trash        查看回收站中的 slot")
+        print("  restore      从备份恢复 DB slot (--from-trash 从回收站恢复)")
+        print("  purge        永久删除回收站中的 slot")
         print("  backup       备份当前 DB slot")
         return 1
 
@@ -1301,6 +1491,20 @@ def _db_init(force=False):
         _create_slot_structure(slot_dir)
         print(f"  [OK] {slot_id}/ 目录已创建")
 
+    # P0-5: Register all 3 slots in registry (not just slot_001)
+    if len(registry["slots"]) < 3:
+        registry["slots"].append({
+            "id": "slot_002", "name": "空闲工作区 2",
+            "description": "空闲工作区", "status": "normal",
+            "created_at": datetime.now().isoformat(), "project_count": 0,
+        })
+        registry["slots"].append({
+            "id": "slot_003", "name": "空闲工作区 3",
+            "description": "空闲工作区", "status": "normal",
+            "created_at": datetime.now().isoformat(), "project_count": 0,
+        })
+        registry_file.write_text(_json.dumps(registry, ensure_ascii=False, indent=2), encoding="utf-8")
+
     print()
     print("  workspace 初始化完成！")
     print(f"  活跃 slot: slot_001")
@@ -1329,7 +1533,7 @@ def _create_slot_structure(slot_dir: Path):
 
 
 def _db_list():
-    """List all DB slots."""
+    """List all DB slots with detailed info."""
     import json as _json
     ws_dir = _get_workspace_dir()
     registry_file = ws_dir / "registry.json"
@@ -1342,13 +1546,13 @@ def _db_list():
     active = registry.get("active_slot", "")
     slots = registry.get("slots", [])
 
-    print("=" * 60)
-    print("  工作区 DB Slot 列表")
-    print("=" * 60)
+    print("=" * 70)
+    print("  作品列表")
+    print("=" * 70)
     print()
 
     if not slots:
-        print("  暂无 slot。运行 python novel.py db new 创建。")
+        print("  暂无作品。用「创建一本新小说的工作区」来添加第一本吧！")
         return 0
 
     for s in slots:
@@ -1356,18 +1560,65 @@ def _db_list():
         name = s.get("name", "")
         status = s.get("status", "?")
         desc = s.get("description", "")
-        projects = s.get("project_count", 0)
         is_active = (sid == active)
 
+        # ── 读取 slot 目录下的详细信息 ──
+        slot_dir = ws_dir / sid
+        outline_title = ""
+        outline_count = 0
+        chapter_count = 0
+        word_count = 0
+
+        if slot_dir.exists():
+            # 统计大纲
+            outlines_dir = slot_dir / "outlines"
+            if outlines_dir.exists():
+                outline_files = list(outlines_dir.glob("*.json"))
+                outline_count = len(outline_files)
+
+            # 读取 project.json 获取活跃大纲标题
+            proj_file = slot_dir / "project.json"
+            if proj_file.exists():
+                try:
+                    proj = _json.loads(proj_file.read_text(encoding="utf-8"))
+                    active_oid = proj.get("active_outline", "")
+                    if active_oid:
+                        o_file = outlines_dir / f"{active_oid}.json" if outlines_dir.exists() else None
+                        if o_file and o_file.exists():
+                            o_data = _json.loads(o_file.read_text(encoding="utf-8"))
+                            outline_title = o_data.get("title", "")
+                            chapter_count = o_data.get("chapter_count", 0)
+                except Exception:
+                    pass
+
+            # 统计章节和字数
+            chapters_dir = slot_dir / "chapters"
+            if chapters_dir.exists():
+                ch_files = list(chapters_dir.glob("*.json"))
+                chapter_count = max(chapter_count, len(ch_files))
+                for cf in ch_files:
+                    try:
+                        ch_data = _json.loads(cf.read_text(encoding="utf-8"))
+                        wc = ch_data.get("word_count", 0)
+                        if isinstance(wc, (int, float)):
+                            word_count += int(wc)
+                    except Exception:
+                        pass
+
+        # ── 显示 ──
         marker = "★" if is_active else " "
-        status_cn = "活跃" if is_active else ("正常" if status == "active" else status)
+        status_cn = "当前使用中" if is_active else ("正常" if status == "active" else status)
+
         print(f"  {marker} [{sid}] {name}")
-        print(f"      状态: {status_cn}  |  项目数: {projects}")
+        print(f"      状态: {status_cn}")
+        if outline_title:
+            print(f"      大纲: {outline_title}")
+        print(f"      大纲版本数: {outline_count}  |  章节数: {chapter_count}  |  总字数: {word_count:,}")
         if desc:
             print(f"      描述: {desc}")
         print()
 
-    print(f"  共 {len(slots)} 个 slot，当前活跃: {active}")
+    print(f"  共 {len(slots)} 个作品，当前正在写: {active}")
     return 0
 
 
@@ -1591,10 +1842,13 @@ def _db_use(slot_id):
     return 0
 
 
-def _db_delete(slot_id):
-    """Delete a DB slot."""
+def _db_delete(slot_id, yes=False):
+    """Safe delete a DB slot — moves to workspace/_trash/ by default.
+
+    With --yes flag, performs safe delete (move to trash).
+    Without --yes, prompts for confirmation.
+    """
     import json as _json
-    import shutil
     ws_dir = _get_workspace_dir()
     registry_file = ws_dir / "registry.json"
 
@@ -1611,8 +1865,7 @@ def _db_delete(slot_id):
         return 1
 
     if slot_id == "slot_001":
-        print(f"  ⚠️  slot_001 是默认工作区，通常不应删除。")
-        print(f"  强制删除请手动操作: rm -rf workspace/{slot_id}")
+        print(f"  ⚠️  slot_001 是默认工作区，不能删除。")
         return 1
 
     # Verify slot exists
@@ -1620,26 +1873,50 @@ def _db_delete(slot_id):
         print(f"  ❌ Slot {slot_id} 不在注册表中。")
         return 1
 
-    # Remove from registry
-    registry["slots"] = [s for s in registry.get("slots", []) if s.get("id") != slot_id]
-    registry_file.write_text(_json.dumps(registry, ensure_ascii=False, indent=2), encoding="utf-8")
+    # Require confirmation
+    if not yes:
+        print(f"  ⚠️  即将安全删除 slot {slot_id}（移至回收站）。")
+        print(f"  使用 --yes 确认删除。")
+        print(f"  查看回收站: python novel.py db trash")
+        return 1
 
-    # Remove directory
-    slot_dir = ws_dir / slot_id
-    if slot_dir.exists():
-        shutil.rmtree(slot_dir)
-        print(f"  ✅ Slot {slot_id} 已删除（目录和注册表）。")
-    else:
-        print(f"  ✅ Slot {slot_id} 已从注册表中移除（目录不存在）。")
+    # Use SlotManager for safe trash-based deletion
+    try:
+        from scripts.db.slot_manager import SlotManager
+        mgr = SlotManager(PROJECT_ROOT)
+        result = mgr.delete_slot_safe(slot_id, confirm=True)
 
-    print(f"  剩余 slot: {len(registry['slots'])} 个")
-    return 0
+        if result["status"] == "ok":
+            print(f"  ✅ {result['message']}")
+            print(f"  回收站标识: {result.get('trash_name', '?')}")
+            remaining = len(registry.get("slots", [])) - 1
+            print(f"  剩余 slot: {remaining} 个")
+            print()
+            print(f"  提示: 使用 python novel.py db trash 查看回收站")
+            print(f"       使用 python novel.py db restore --from-trash {result.get('trash_name', '')} 恢复")
+            print(f"       使用 python novel.py db purge {result.get('trash_name', '')} 永久删除")
+            return 0
+        else:
+            print(f"  ❌ 删除失败: {result.get('message', '未知错误')}")
+            return 1
+    except ImportError:
+        # Fallback: old-style permanent delete with confirmation
+        print(f"  ⚠️  SlotManager 不可用，回退到永久删除模式。")
+        print(f"  确认永久删除 {slot_id} 吗？此操作不可逆！")
+        print(f"  使用 --yes 确认。")
+        return 1
 
 
-def _db_restore(slot_id, backup_id=None):
-    """Restore a DB slot from backup."""
+def _db_restore(slot_id, backup_id=None, from_trash=False):
+    """Restore a DB slot from backup or from trash.
+
+    With --from-trash: restore from workspace/_trash/ (trash_name format).
+    Without --from-trash: restore from slot's backup directory (existing behavior).
+    """
+    if from_trash:
+        return _db_restore_from_trash(slot_id)
+
     import json as _json
-    import shutil
     from datetime import datetime
     ws_dir = _get_workspace_dir()
     registry_file = ws_dir / "registry.json"
@@ -1744,6 +2021,177 @@ def _db_backup(slot=None):
     return 0
 
 
+# === P1-3: Trash management CLI helpers ===
+
+def _db_trash():
+    """List items in workspace/_trash/."""
+    ws_dir = _get_workspace_dir()
+    trash_dir = ws_dir / "_trash"
+
+    if not trash_dir.exists():
+        print("  回收站为空。")
+        return 0
+
+    try:
+        from scripts.db.slot_manager import SlotManager
+        mgr = SlotManager(PROJECT_ROOT)
+        items = mgr.list_trash()
+    except ImportError:
+        items = []
+        for entry in sorted(trash_dir.iterdir(), key=lambda p: p.name, reverse=True):
+            if entry.is_dir():
+                size = sum(f.stat().st_size for f in entry.rglob("*") if f.is_file())
+                items.append({
+                    "trash_name": entry.name,
+                    "original_slot_id": entry.name.split("_", 2)[-1] if "_" in entry.name else entry.name,
+                    "trashed_at": "",
+                    "size_bytes": size,
+                })
+
+    if not items:
+        print("  回收站为空。")
+        return 0
+
+    print("=" * 60)
+    print("  回收站 (workspace/_trash/)")
+    print("=" * 60)
+    print()
+
+    for item in items:
+        trash_name = item.get("trash_name", "?")
+        original = item.get("original_slot_id", "?")
+        trashed_at = item.get("trashed_at", "")
+        size = item.get("size_bytes", 0)
+
+        if trashed_at:
+            try:
+                from datetime import datetime
+                dt = datetime.fromisoformat(trashed_at)
+                trashed_at = dt.strftime("%Y-%m-%d %H:%M")
+            except (ValueError, TypeError):
+                pass
+
+        size_str = f"{size:,}B" if size < 1024 else f"{size/1024:.1f}KB" if size < 1024*1024 else f"{size/(1024*1024):.1f}MB"
+        print(f"  🗑️  {trash_name}")
+        print(f"     原始 Slot: {original}")
+        if trashed_at:
+            print(f"     删除时间: {trashed_at}")
+        print(f"     大小: {size_str}")
+        print()
+
+    print(f"  共 {len(items)} 项")
+    print()
+    print(f"  恢复: python novel.py db restore --from-trash <trash_name>")
+    print(f"  永久删除: python novel.py db purge <trash_name>")
+    print(f"  清空回收站: python novel.py db purge")
+    return 0
+
+
+def _db_restore_from_trash(trash_name):
+    """Restore a slot from workspace/_trash/."""
+    if not trash_name:
+        print("  ❌ 请指定回收站中的项目名。")
+        print("  使用 python novel.py db trash 查看回收站。")
+        return 1
+
+    try:
+        from scripts.db.slot_manager import SlotManager
+        mgr = SlotManager(PROJECT_ROOT)
+        result = mgr.restore_slot_from_trash(trash_name)
+
+        if result["status"] == "ok":
+            print(f"  ✅ {result['message']}")
+            print(f"  Slot ID: {result.get('slot_id', '?')}")
+            print()
+            print(f"  切换到恢复的 slot: python novel.py db use {result.get('slot_id', '')}")
+            return 0
+        else:
+            print(f"  ❌ 恢复失败: {result.get('message', '未知错误')}")
+            available = result.get("available", [])
+            if available:
+                print(f"  回收站中可用的项目: {', '.join(available)}")
+            return 1
+    except ImportError:
+        # Fallback: manual restore
+        ws_dir = _get_workspace_dir()
+        trash_dir = ws_dir / "_trash"
+        source = trash_dir / trash_name
+
+        if not source.exists():
+            print(f"  ❌ 回收站中未找到: {trash_name}")
+            return 1
+
+        # Try to determine original slot ID
+        parts = trash_name.split("_", 2)
+        slot_id = parts[2] if len(parts) >= 3 else trash_name
+        target = ws_dir / slot_id
+
+        if target.exists():
+            print(f"  ❌ Slot {slot_id} 已存在于 workspace 中。")
+            return 1
+
+        import shutil
+        shutil.move(str(source), str(target))
+        print(f"  ✅ 已恢复 {slot_id} (手动模式)")
+        print(f"  请运行 python novel.py db init --force 重建注册表。")
+        return 0
+
+
+def _db_purge(trash_name=None):
+    """Permanently delete items from workspace/_trash/."""
+    try:
+        from scripts.db.slot_manager import SlotManager
+        mgr = SlotManager(PROJECT_ROOT)
+        result = mgr.purge_trash(trash_name)
+
+        if result["status"] == "ok":
+            if trash_name:
+                print(f"  ✅ {result['message']}")
+            else:
+                purged = result.get("purged", [])
+                if not purged:
+                    print("  回收站为空，无需清空。")
+                else:
+                    print(f"  ✅ 已永久删除 {len(purged)} 项:")
+                    for name in purged:
+                        print(f"     - {name}")
+            return 0
+        elif result["status"] == "partial":
+            print(f"  ⚠️  {result['message']}")
+            for err in result.get("errors", []):
+                print(f"     ❌ {err['item']}: {err['error']}")
+            return 1
+        else:
+            print(f"  ❌ {result.get('message', '未知错误')}")
+            return 1
+    except ImportError:
+        # Fallback: manual purge
+        import shutil
+        ws_dir = _get_workspace_dir()
+        trash_dir = ws_dir / "_trash"
+
+        if not trash_dir.exists():
+            print("  回收站为空。")
+            return 0
+
+        if trash_name:
+            target = trash_dir / trash_name
+            if target.exists():
+                shutil.rmtree(str(target))
+                print(f"  ✅ 已永久删除: {trash_name}")
+            else:
+                print(f"  ❌ 未找到: {trash_name}")
+                return 1
+        else:
+            count = 0
+            for entry in list(trash_dir.iterdir()):
+                if entry.is_dir():
+                    shutil.rmtree(str(entry))
+                    count += 1
+            print(f"  ✅ 已永久删除 {count} 项")
+        return 0
+
+
 def _get_outline_manager():
     """Helper: get OutlineManager instance."""
     from scripts.outline.outline_manager import OutlineManager
@@ -1785,7 +2233,10 @@ def cmd_outline(args):
         return _outline_add(getattr(args, "outline_file", ""),
                            getattr(args, "title", ""),
                            getattr(args, "genre", ""),
-                           getattr(args, "style", ""))
+                           getattr(args, "style", ""),
+                           replace_current=getattr(args, "replace_current", False),
+                           keep_inactive=getattr(args, "keep_inactive", False),
+                           dry_run=getattr(args, "dry_run", False))
     elif action == "import":
         return _outline_import(getattr(args, "outline_file", ""),
                               getattr(args, "title", ""),
@@ -1821,8 +2272,9 @@ def cmd_outline(args):
         return 1
 
 
-def _outline_add(file_path, title="", genre="", style=""):
-    """添加大纲文件"""
+def _outline_add(file_path, title="", genre="", style="",
+                  replace_current=False, keep_inactive=False, dry_run=False):
+    """添加大纲文件 — P0-6/P0-7 智能行为"""
     fp = Path(file_path)
     if not fp.exists():
         print(f"  ❌ 文件不存在: {file_path}")
@@ -1885,17 +2337,217 @@ def _outline_add(file_path, title="", genre="", style=""):
 
             print()
 
-            # 根据建议决策
-            if similarity["recommendation"] == "new_novel":
-                print("  ⚠️  检测到可能是不相关的小说。")
-                print("  如果确认导入，请用: python novel.py outline import --force")
-                print("  或者先创建新的工作区: python novel.py db new --name \"新小说名\"")
-                return 1
-        except ImportError:
-            print("  (相似度引擎不可用，跳过检测)")
-        except Exception as e:
-            print(f"  (相似度检测异常: {e})")
+            # ── P0-6: 低相似度 (<35) — 自动创建新 slot ──
+            if similarity["recommendation"] == "new_novel" or score < 35:
+                print("  🔄 检测到可能是不同的小说。" if similarity["recommendation"] == "new_novel"
+                      else "  🔄 相似度低于阈值，判定为新小说。")
+                print()
 
+                if dry_run:
+                    print("  [--dry-run] 将执行以下操作:")
+                    idle = mgr._find_idle_slot()
+                    if idle:
+                        print(f"  → 使用空闲 slot: {idle}")
+                    else:
+                        new_id = mgr._get_next_slot_id()
+                        print(f"  → 创建新 slot: {new_id}")
+                    print(f"  → 将大纲导入新 slot 并切换工作区" if title else f"  → 将「{fp.stem}」导入新 slot 并切换工作区" )
+                    print(f"  → 原 slot 不受影响" )
+                    print()
+                    print("  使用 --replace-current 或 --keep-inactive 覆盖此行为。" )
+                    return 0
+
+                print("  → 正在为新小说创建独立工作区..." )
+                result = mgr.add_outline_to_new_slot(
+                    content=content,
+                    title=title or fp.stem,
+                    genre=genre,
+                    style=style,
+                    similarity_result=similarity,
+                )
+
+                if result.get("status") == "error":
+                    print(f"  ❌ {result.get('message', '创建失败')}" )
+                    return 1
+
+                print()
+                print("=" * 60)
+                print("  ✅ 新小说工作区创建成功！" )
+                print("=" * 60)
+                print(f"  新 Slot: {result['slot_id']}" )
+                print(f"  创建方式: {'新建' if result['slot_created'] else '复用空闲 slot'}" )
+                print(f"  大纲 ID: {result['outline_id']}" )
+                print(f"  标题: {result['title']}" )
+                print(f"  章节数: {result.get('chapter_count', 0)}" )
+                if result.get('old_slot'):
+                    print(f"  已从 {result['old_slot']} 切换到此工作区" )
+                print()
+                print("  使用 python novel.py db list 查看所有工作区" )
+                return 0
+
+            # ── P0-7: 高相似度 (>=70) — 升级当前大纲 ──
+            if similarity["recommendation"] == "upgrade" or score >= 70:
+                print("  📝 检测到这是当前小说的大纲升级版。" )
+
+                if dry_run:
+                    print(f"  [--dry-run] 相似度 {score}/100，判定为升级版。" )
+                    print("  使用 --replace-current 激活为新大纲" )
+                    print("  使用 --keep-inactive 保存但不激活" )
+                    return 0
+
+                if replace_current:
+                    print("  → 正在替换当前激活大纲（旧版将保存为历史版本）..." )
+                    result = mgr.add_outline_as_version(
+                        content=content,
+                        title=title or fp.stem,
+                        genre=genre,
+                        style=style,
+                        similarity_result=similarity,
+                        activate=True,
+                    )
+                elif keep_inactive:
+                    print("  → 正在保存为独立大纲（不激活）..." )
+                    result = mgr.add_outline_as_version(
+                        content=content,
+                        title=title or fp.stem,
+                        genre=genre,
+                        style=style,
+                        similarity_result=similarity,
+                        activate=False,
+                    )
+                else:
+                    # 无 CLI flag: 询问用户
+                    print("  检测到这是当前小说的大纲升级版。是否将它设为当前激活大纲？" )
+                    print("  输入 y = 替换当前大纲（旧版保存为历史版本）" )
+                    print("  输入 n = 保存但不激活（保留当前激活大纲）" )
+                    try:
+                        choice = input("  > ").strip().lower()
+                    except (EOFError, KeyboardInterrupt):
+                        choice = "n"
+                    if choice == "y" or choice == "yes":
+                        print("  → 替换当前激活大纲..." )
+                        result = mgr.add_outline_as_version(
+                            content=content,
+                            title=title or fp.stem,
+                            genre=genre,
+                            style=style,
+                            similarity_result=similarity,
+                            activate=True,
+                        )
+                    else:
+                        print("  → 保存但不激活..." )
+                        result = mgr.add_outline_as_version(
+                            content=content,
+                            title=title or fp.stem,
+                            genre=genre,
+                            style=style,
+                            similarity_result=similarity,
+                            activate=False,
+                        )
+
+                if result.get("status") == "error":
+                    print(f"  ❌ {result.get('message', '添加失败')}" )
+                    return 1
+
+                print()
+                print("=" * 60)
+                if result.get("mode") == "replace":
+                    print("  ✅ 大纲已升级！（旧版已保存为历史版本）" )
+                else:
+                    print("  ✅ 大纲已保存（未激活，当前激活大纲不变）" )
+                print("=" * 60)
+                print(f"  ID: {result['id']}" )
+                print(f"  标题: {result['title']}" )
+                print(f"  章节数: {result.get('chapter_count', 0)}" )
+                if result.get("versions_count", 0) > 0:
+                    print(f"  历史版本: {result['versions_count']} 个" )
+                if result.get("mode") == "inactive":
+                    print()
+                    print(f"  使用 python novel.py outline switch {result['id']} 激活此大纲" )
+                print()
+                return 0
+
+            # ── 不确定区域 (35-69): ask_user ──
+            print("  ⚠️  相似度处于不确定范围（35-69）。" )
+            print("  请手动判断:" )
+            print(f"    1 = 同一小说，替换当前大纲" )
+            print(f"    2 = 同一小说，保存但不激活" )
+            print(f"    3 = 不同小说，创建新工作区" )
+            print(f"    4 = 取消" )
+            try:
+                choice = input("  > ").strip()
+            except (EOFError, KeyboardInterrupt):
+                choice = "4"
+            if choice == "1":
+                print("  → 替换当前激活大纲..." )
+                result = mgr.add_outline_as_version(
+                    content=content,
+                    title=title or fp.stem,
+                    genre=genre,
+                    style=style,
+                    similarity_result=similarity,
+                    activate=True,
+                )
+                if result.get("status") == "error":
+                    print(f"  ❌ {result.get('message', '添加失败')}" )
+                    return 1
+                print()
+                print("=" * 60)
+                print("  ✅ 大纲已升级！（旧版保存为历史版本）" )
+                print("=" * 60)
+                print(f"  ID: {result['id']}" )
+                print(f"  标题: {result['title']}" )
+                return 0
+            elif choice == "2":
+                print("  → 保存但不激活..." )
+                result = mgr.add_outline_as_version(
+                    content=content,
+                    title=title or fp.stem,
+                    genre=genre,
+                    style=style,
+                    similarity_result=similarity,
+                    activate=False,
+                )
+                if result.get("status") == "error":
+                    print(f"  ❌ {result.get('message', '添加失败')}" )
+                    return 1
+                print()
+                print("=" * 60)
+                print("  ✅ 大纲已保存（未激活）" )
+                print("=" * 60)
+                print(f"  ID: {result['id']}" )
+                print(f"  标题: {result['title']}" )
+                return 0
+            elif choice == "3":
+                print("  → 正在为新小说创建独立工作区..." )
+                result = mgr.add_outline_to_new_slot(
+                    content=content,
+                    title=title or fp.stem,
+                    genre=genre,
+                    style=style,
+                    similarity_result=similarity,
+                )
+                if result.get("status") == "error":
+                    print(f"  ❌ {result.get('message', '创建失败')}" )
+                    return 1
+                print()
+                print("=" * 60)
+                print("  ✅ 新小说工作区创建成功！" )
+                print("=" * 60)
+                print(f"  新 Slot: {result['slot_id']}" )
+                print(f"  大纲 ID: {result['outline_id']}" )
+                print(f"  标题: {result['title']}" )
+                return 0
+            else:
+                print("  ⏭️  已取消。" )
+                return 1
+
+        except ImportError:
+            print("  (相似度引擎不可用，跳过检测)" )
+        except Exception as e:
+            print(f"  (相似度检测异常: {e})" )
+
+    # 无已有大纲或相似度引擎异常：直接添加
     result = mgr.add_outline(
         content=content,
         title=title,
@@ -1905,18 +2557,18 @@ def _outline_add(file_path, title="", genre="", style=""):
     )
 
     if result.get("status") == "error":
-        print(f"  ❌ {result.get('message', '添加失败')}")
+        print(f"  ❌ {result.get('message', '添加失败')}" )
         return 1
 
     print("=" * 60)
-    print("  ✅ 大纲添加成功！")
+    print("  ✅ 大纲添加成功！" )
     print("=" * 60)
-    print(f"  ID: {result['id']}")
-    print(f"  标题: {result['title']}")
-    print(f"  章节数: {result.get('chapter_count', 0)}")
-    print(f"  卷数: {result.get('volume_count', 1)}")
+    print(f"  ID: {result['id']}" )
+    print(f"  标题: {result['title']}" )
+    print(f"  章节数: {result.get('chapter_count', 0)}" )
+    print(f"  卷数: {result.get('volume_count', 1)}" )
     print()
-    print("  使用 python novel.py outline list 查看所有大纲")
+    print("  使用 python novel.py outline list 查看所有大纲" )
     return 0
 
 
@@ -1956,7 +2608,7 @@ def _outline_import(file_path, title="", genre="", style=""):
 
 
 def _outline_list():
-    """列出所有大纲"""
+    """列出所有大纲，含版本关系显示"""
     mgr = _get_outline_manager()
     outlines = mgr.list_outlines()
 
@@ -1965,14 +2617,22 @@ def _outline_list():
         print("  使用 python novel.py outline add <文件> 添加大纲。")
         return 0
 
-    print("=" * 60)
+    print("=" * 70)
     print("  大纲列表")
-    print("=" * 60)
+    print("=" * 70)
     print()
 
     for o in outlines:
         marker = "★" if o.get("active") else " "
-        print(f"  {marker} [{o['id']}]")
+        otype = o.get("type", "")
+        type_labels = {
+            "active": "🔵 当前使用",
+            "historical": "📜 历史版本",
+            "candidate": "📄 候选大纲",
+        }
+        type_label = type_labels.get(otype, otype)
+
+        print(f"  {marker} [{o['id']}]  {type_label}")
         print(f"      标题: {o['title']}")
         print(f"      章节: {o.get('chapter_count', 0)} 章 / {o.get('volume_count', 1)} 卷")
         genre = o.get("genre", "")
@@ -1982,12 +2642,31 @@ def _outline_list():
         tags = o.get("tags", [])
         if tags:
             print(f"      标签: {', '.join(tags)}")
-        print(f"      版本: {o.get('versions_count', 0)} 个历史版本")
+
+        # ── 版本关系 ──
+        sv = o.get("source_version")
+        if sv:
+            print(f"      来源版本: v{sv.get('version', '?')}「{sv.get('title', '')}」({sv.get('saved_at', '')[:19] if sv.get('saved_at') else '未知时间'})")
+        else:
+            ver_count = o.get('versions_count', 0)
+            print(f"      历史版本: {ver_count} 个")
+
+        # ── 相似度 ──
+        sim_score = o.get("similarity_score")
+        if sim_score is not None:
+            similar_to = o.get("similar_to", "")
+            if similar_to:
+                print(f"      相似度: {sim_score}% → 「{similar_to}」")
+            else:
+                print(f"      相似度: {sim_score}%")
+
         print(f"      更新时间: {o.get('updated_at', o.get('created_at', ''))[:19]}")
         print()
 
-    active_count = sum(1 for o in outlines if o.get("active"))
-    print(f"  共 {len(outlines)} 个大纲，其中 {active_count} 个激活")
+    active_count = sum(1 for o in outlines if o.get("type") == "active")
+    historical_count = sum(1 for o in outlines if o.get("type") == "historical")
+    candidate_count = sum(1 for o in outlines if o.get("type") == "candidate")
+    print(f"  共 {len(outlines)} 个大纲：{active_count} 个使用中 / {historical_count} 个历史 / {candidate_count} 个候选")
     return 0
 
 
@@ -2954,6 +3633,172 @@ def cmd_menu():
     return 0
 
 
+def cmd_stability_check():
+    """P2-1: 稳定性自检 — 输出评分和问题清单."""
+    import subprocess as _sp
+    import importlib
+
+    print("=" * 60)
+    print(f"  Novel Pipeline - 稳定性自检")
+    print(f"  版本: {get_version()}")
+    print("=" * 60)
+    print()
+
+    score = 100
+    p0_issues = []
+    p1_issues = []
+    checks = []
+
+    # 1. 版本号一致
+    try:
+        vfile = (PROJECT_ROOT / "VERSION").read_text(encoding="utf-8").strip()
+        v = get_version()
+        ok = v == vfile
+        checks.append(("版本号一致性", ok, f"VERSION={vfile}, get_version()={v}"))
+        if not ok:
+            p0_issues.append("VERSION 文件与代码版本不一致")
+            score -= 10
+    except Exception as e:
+        checks.append(("版本号一致性", False, str(e)))
+        p0_issues.append(f"无法读取版本号: {e}")
+        score -= 10
+
+    # 2. config 可解析
+    try:
+        cfg = _load_project_config()
+        checks.append(("配置文件", True, "config.json 可解析"))
+    except Exception as e:
+        checks.append(("配置文件", False, str(e)))
+        p0_issues.append(f"config.json 解析失败: {e}")
+        score -= 10
+
+    # 3. workspace 初始化
+    ws_dir = PROJECT_ROOT / "workspace"
+    ws_ok = ws_dir.exists() and (ws_dir / "registry.json").exists()
+    checks.append(("workspace 初始化", ws_ok, str(ws_dir)))
+    if not ws_ok:
+        p1_issues.append("workspace 未初始化，请运行 python novel.py db init")
+        score -= 5
+
+    # 4. 默认 3 slot 完整
+    if ws_ok:
+        try:
+            import json as _json
+            reg = _json.loads((ws_dir / "registry.json").read_text(encoding="utf-8"))
+            slots = reg.get("slots", [])
+            slot_ok = len(slots) >= 3
+            checks.append(("默认 slot 完整", slot_ok, f"{len(slots)} 个 slot"))
+            if not slot_ok:
+                p0_issues.append(f"仅有 {len(slots)} 个默认 slot，需要 3 个")
+                score -= 10
+        except Exception as e:
+            checks.append(("默认 slot 完整", False, str(e)))
+            score -= 5
+
+    # 5. active slot 有 novel.db
+    try:
+        from scripts.db.slot_manager import SlotManager
+        sm = SlotManager(PROJECT_ROOT)
+        if sm.registry.exists():
+            active = sm.registry.get_active_slot()
+            db_path = sm.get_slot_db_path(active) if active else None
+            db_ok = db_path and db_path.exists()
+            checks.append(("active slot DB", db_ok, str(db_path) if db_path else "无活跃 slot"))
+            if not db_ok:
+                p0_issues.append(f"活跃 slot {active} 缺少 novel.db")
+                score -= 10
+        else:
+            checks.append(("active slot DB", False, "registry 不存在"))
+    except Exception as e:
+        checks.append(("active slot DB", False, str(e)))
+        p1_issues.append(f"无法检查 DB: {e}")
+        score -= 5
+
+    # 6. agent 数量达标
+    agents_dir = PROJECT_ROOT / "configs" / "jury" / "agents"
+    agent_count = len(list(agents_dir.glob("*.yaml"))) if agents_dir.exists() else 0
+    agent_ok = agent_count >= 15
+    checks.append(("Agent 数量", agent_ok, f"{agent_count} 个 (需要 >=15)"))
+    if not agent_ok:
+        p0_issues.append(f"Agent 仅 {agent_count} 个，目标 >=15")
+        score -= 10
+
+    # 7. pytest 可运行
+    try:
+        result = _sp.run([sys.executable, "-m", "pytest", "tests/", "-q", "--tb=no"],
+                         cwd=str(PROJECT_ROOT), timeout=60, capture_output=True, text=True)
+        test_ok = result.returncode == 0
+        checks.append(("pytest", test_ok, f"exit={result.returncode}"))
+        if not test_ok:
+            p0_issues.append("pytest 运行失败")
+            score -= 10
+    except Exception as e:
+        checks.append(("pytest", False, str(e)))
+        p1_issues.append(f"pytest 无法运行: {e}")
+        score -= 5
+
+    # 8. 交叉平台检查
+    cp_script = PROJECT_ROOT / "scripts" / "cross_platform_check.py"
+    if cp_script.exists():
+        try:
+            cp = _sp.run([sys.executable, str(cp_script)], cwd=str(PROJECT_ROOT),
+                         timeout=30, capture_output=True, text=True)
+            cp_ok = cp.returncode == 0
+            checks.append(("交叉平台", cp_ok, "通过" if cp_ok else "有警告"))
+            if not cp_ok:
+                p1_issues.append("交叉平台检查有警告")
+                score -= 5
+        except Exception:
+            checks.append(("交叉平台", False, "超时/异常"))
+            score -= 5
+
+    # 9. story contract 是否存在断链
+    story_dir = PROJECT_ROOT / ".story"
+    if story_dir.exists():
+        try:
+            from scripts.story import story_health
+            health = story_health.check_health(PROJECT_ROOT)
+            h_ok = health["status"] == "OK"
+            checks.append(("Story 健康", h_ok, health["status"]))
+            if health["status"] == "FAIL":
+                p0_issues.append(f"Story 链断裂: {len(health.get('failures', []))} 项")
+                score -= 10
+            elif health["status"] == "WARN":
+                p1_issues.append(f"Story 链警告: {len(health.get('warnings', []))} 项")
+                score -= 5
+        except Exception as e:
+            checks.append(("Story 健康", False, str(e)))
+
+    # 输出结果
+    for name, ok, detail in checks:
+        icon = "✓" if ok else "✗"
+        print(f"  [{icon}] {name}: {detail}")
+
+    print()
+    print("=" * 60)
+    print(f"  稳定性评分: {max(0, score)}/100")
+    print(f"  P0 问题: {len(p0_issues)} 个")
+    print(f"  P1 问题: {len(p1_issues)} 个")
+
+    if p0_issues:
+        print(f"\n  P0 必须修复:")
+        for iss in p0_issues:
+            print(f"    ✗ {iss}")
+    if p1_issues:
+        print(f"\n  P1 建议修复:")
+        for iss in p1_issues:
+            print(f"    ⚠ {iss}")
+
+    if score >= 80:
+        print(f"\n  建议: 可以发布正式版")
+    elif score >= 60:
+        print(f"\n  建议: 修复 P0 问题后再发布")
+    else:
+        print(f"\n  建议: 不建议发布")
+    print("=" * 60)
+    return 0 if score >= 80 else 1
+
+
 def main():
     import argparse
 
@@ -3005,6 +3850,8 @@ def main():
     p_agents_review.add_argument("--slug", help="Novel slug")
     p_agents_review.add_argument("--genre", help="Genre pack ID (e.g. xianxia, mystery)")
     p_agents_review.add_argument("--style", default=None, help="Style pack ID (e.g. webnovel, black_humor)")
+    p_agents_list = p_agents_sub.add_parser("list", help="List all available agents")
+    p_agents_list.add_argument("--mode", default=None, help="Filter by mode (light/full/strict/webnovel)")
 
     # rag
     p_rag = sub.add_parser("rag", help="Vector RAG (optional)")
@@ -3028,11 +3875,16 @@ def main():
     p_db_new.add_argument("--description", default="", help="Slot 描述")
     p_db_use = p_db_sub.add_parser("use", help="切换到指定 DB slot")
     p_db_use.add_argument("slot_id", help="Slot ID (如 slot_001)")
-    p_db_delete = p_db_sub.add_parser("delete", help="删除指定 DB slot")
+    p_db_delete = p_db_sub.add_parser("delete", help="安全删除 DB slot (移至回收站)")
     p_db_delete.add_argument("slot_id", help="Slot ID")
-    p_db_restore = p_db_sub.add_parser("restore", help="从备份恢复 DB slot")
-    p_db_restore.add_argument("slot_id", help="Slot ID")
+    p_db_delete.add_argument("--yes", action="store_true", help="确认删除")
+    p_db_sub.add_parser("trash", help="查看回收站中的 slot")
+    p_db_restore = p_db_sub.add_parser("restore", help="从备份或回收站恢复 DB slot")
+    p_db_restore.add_argument("slot_id", help="Slot ID 或回收站项目名")
     p_db_restore.add_argument("--backup-id", help="备份 ID (不指定则使用最新备份)")
+    p_db_restore.add_argument("--from-trash", action="store_true", help="从回收站恢复 (默认从备份恢复)")
+    p_db_purge = p_db_sub.add_parser("purge", help="永久删除回收站中的 slot")
+    p_db_purge.add_argument("trash_name", nargs="?", default=None, help="回收站项目名 (不指定则清空全部)")
     p_db_backup = p_db_sub.add_parser("backup", help="备份当前 DB slot")
     p_db_backup.add_argument("--slot", help="Slot ID (默认当前活跃)")
     p_db_init = p_db_sub.add_parser("init", help="初始化 workspace 目录结构")
@@ -3040,11 +3892,17 @@ def main():
     # outline — 大纲管理
     p_outline = sub.add_parser("outline", help="大纲管理（添加/列出/切换/对比/回滚）")
     p_outline_sub = p_outline.add_subparsers(dest="outline_action")
-    p_outline_add = p_outline_sub.add_parser("add", help="添加大纲")
+    p_outline_add = p_outline_sub.add_parser("add", help="添加大纲（自动相似度检测与智能处理）")
     p_outline_add.add_argument("outline_file", help="大纲文件路径 (.txt)")
     p_outline_add.add_argument("--title", default="", help="大纲标题")
     p_outline_add.add_argument("--genre", default="", help="题材")
     p_outline_add.add_argument("--style", default="", help="风格")
+    p_outline_add.add_argument("--replace-current", action="store_true",
+                                help="高相似度时替换当前激活大纲（P0-7）")
+    p_outline_add.add_argument("--keep-inactive", action="store_true",
+                                help="高相似度时保存但不激活（P0-7）")
+    p_outline_add.add_argument("--dry-run", action="store_true",
+                                help="仅显示相似度分析结果，不执行实际操作")
     p_outline_import = p_outline_sub.add_parser("import", help="导入大纲（指定标题）")
     p_outline_import.add_argument("outline_file", help="大纲文件路径 (.txt)")
     p_outline_import.add_argument("--title", required=True, help="大纲标题")
@@ -3106,6 +3964,18 @@ def main():
     # menu — 交互式文本菜单
     sub.add_parser("menu", help="进入交互式文本菜单")
     sub.add_parser("scc-menu", help="进入交互式文本菜单 (同 menu)")
+    # P2-3: 中文别名（自然语言入口）
+    sub.add_parser("start", help="进入交互式文本菜单 (同 menu)")
+    sub.add_parser("books", help="列出所有作品 (同 db list)")
+    sub.add_parser("outlines", help="列出所有大纲 (同 outline list)")
+    p_write = sub.add_parser("write", help="写前任务卡 (同 pre)")
+    p_write.add_argument("chapter_no", nargs="?", help="Chapter number")
+    p_submit = sub.add_parser("submit", help="写后入库 (同 post)")
+    p_submit.add_argument("chapter_no", nargs="?", help="Chapter number")
+    p_jury = sub.add_parser("jury", help="轻量审稿 (同 agents review --mode light)")
+    p_jury.add_argument("chapter_no", nargs="?", help="Chapter number")
+    # P2-1: stability-check
+    sub.add_parser("stability-check", help="运行稳定性自检，输出评分和问题清单")
 
     args = parser.parse_args()
 
@@ -3163,10 +4033,46 @@ def main():
         sys.exit(cmd_outline(args))
     elif args.command in ("scc-help", "help"):
         sys.exit(cmd_scc_help())
-    elif args.command in ("menu", "scc-menu"):
+    elif args.command in ("menu", "scc-menu", "start"):
         sys.exit(cmd_menu())
+    elif args.command == "books":
+        sys.exit(cmd_db(argparse.Namespace(db_action="list")))
+    elif args.command == "outlines":
+        import argparse as _ap
+        sys.exit(cmd_outline(_ap.Namespace(outline_action="list")))
+    elif args.command == "write":
+        sys.exit(cmd_pre(getattr(args, "chapter_no", None), None, None))
+    elif args.command == "submit":
+        sys.exit(cmd_post(getattr(args, "chapter_no", None), None, None, None, False))
+    elif args.command == "jury":
+        import argparse as _ap
+        ch = getattr(args, "chapter_no", None)
+        if not ch:
+            print("用法: python novel.py jury <章节号>")
+            sys.exit(1)
+        sys.exit(cmd_agents(_ap.Namespace(agents_action="review", chapter_no=ch, mode="light", slug=None, genre=None, style=None)))
+    elif args.command == "stability-check":
+        sys.exit(cmd_stability_check())
     else:
-        parser.print_help()
+        # P2-2: 友好的"我该做什么"提示
+        print("=" * 50)
+        print(f"  Novel Pipeline - Write Engine {get_version()}")
+        print("=" * 50)
+        print()
+        print("  你现在可以：")
+        print()
+        print("  1. 第一次使用 →  python novel.py start")
+        print("  2. 检查环境   →  python novel.py status")
+        print("  3. 添加大纲   →  python novel.py outline add 大纲.txt")
+        print("  4. 查看作品   →  python novel.py books")
+        print("  5. 开始写作   →  python novel.py write 1")
+        print("  6. 审稿       →  python novel.py jury 1")
+        print("  7. 导出小说   →  python novel.py export --slug demo_novel")
+        print("  8. 运行演示   →  python novel.py demo")
+        print()
+        print("  详细帮助 →  python novel.py scc-help")
+        print("  交互菜单 →  python novel.py menu")
+        print("=" * 50)
 
 
 if __name__ == "__main__":

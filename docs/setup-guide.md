@@ -4,189 +4,238 @@
 
 ## 环境要求
 
-- Python 3.8+
+- Python 3.8+ (推荐 3.10+)
 - SQLite 3（Python 自带）
 - 可用磁盘空间 ≥ 500MB
+- Windows / macOS / Linux
 
 ## 第一步：克隆项目
 
 ```bash
 git clone <your-repo-url>
-cd novel-pipeline
+cd novel-pipeline-write-engine
 ```
 
 ## 第二步：配置路径
 
 ```bash
-cp config.example.json config/config.json
+cp config.example.json config.json
 ```
 
-编辑 `config/config.json`，设置三个核心路径：
+编辑 `config.json`，设置核心路径：
 
 ```json
 {
-  "project_root": "/home/user/novel-pipeline",
+  "project_root": "/home/user/novel-pipeline-write-engine",
   "novel_dir": "/home/user/novels",
-  "database_path": "/home/user/novel-pipeline/database/hermes_memory.db",
+  "database_path": "/home/user/novel-pipeline-write-engine/database/hermes_memory.db",
   "default_novel_slug": "my_novel",
   "default_novel_name": "我的小说"
 }
 ```
 
-**Windows 示例：**
-```json
-{
-  "project_root": "D:\\novel-pipeline",
-  "novel_dir": "D:\\novels",
-  "database_path": "D:\\novel-pipeline\\database\\hermes_memory.db"
-}
-```
+**路径说明** — 所有路径使用 pathlib 风格（正斜杠），跨平台兼容：
 
-**Linux/macOS 示例：**
-```json
-{
-  "project_root": "/home/user/novel-pipeline",
-  "novel_dir": "/home/user/novels",
-  "database_path": "/home/user/novel-pipeline/database/hermes_memory.db"
-}
-```
+| 平台 | 示例路径 |
+|------|----------|
+| Linux | `/home/user/novel-pipeline-write-engine` |
+| macOS | `/Users/<username>/novel-pipeline-write-engine` |
+| Windows | `C:/Users/<username>/novel-pipeline-write-engine` |
 
-## 第三步：创建目录结构
+> **注意**: 在 Windows 上，pathlib 和 Python 会自动处理路径分隔符。配置中使用正斜杠 `/` 即可，无需使用 `\\`。
+
+## 第三步：安装
+
+### Linux / macOS
 
 ```bash
-mkdir -p database config novels exports backups logs
+chmod +x install.sh
+./install.sh
 ```
 
-## 第四步：初始化基础记忆底座
+或者手动安装：
 
 ```bash
-python scripts/init_db.py
+# 创建虚拟环境
+python3 -m venv .venv
+source .venv/bin/activate
+
+# 安装依赖
+pip install -r requirements.txt
+
+# 初始化 workspace
+python novel.py db init
+```
+
+### Windows
+
+```cmd
+install.bat
+```
+
+或者手动安装：
+
+```cmd
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+python novel.py db init
+```
+
+## 第四步：验证安装
+
+```bash
+# macOS / Linux
+source .venv/bin/activate
+
+# Windows
+.venv\Scripts\activate
+
+# 检查状态
+python novel.py status
+```
+
+预期输出：
+```
+============================================================
+  Novel Pipeline - Write Engine v0.6.5
+  状态检查 (标准)
+============================================================
+
+  [OK] OS: ...
+  [OK] Python 3.11
+  [OK] config.json
+  [OK] src/guards/reader_pull_guard.py
+  ...
+  All checks passed. Ready to write.
+```
+
+## 第五步：初始化工作区
+
+```bash
+python novel.py db init
 ```
 
 输出：
 ```
-HermesMemoryBase 初始化完成。
-数据库位置：<your-path>/database/hermes_memory.db
+  [OK] workspace/registry.json 已创建
+  [OK] slot_001/ 目录已创建
+  [OK] slot_002/ 目录已创建
+  [OK] slot_003/ 目录已创建
+
+  workspace 初始化完成！
+  活跃 slot: slot_001
 ```
 
-## 第五步：初始化小说模块
+## 第六步：创建小说目录
 
 ```bash
-python novel_module/init_novel_module.py
+# 创建章节目录
+mkdir -p novels/<你的小说名>/第01卷
 ```
 
-输出：
-```
-11 张基础表创建完成。
-5 个 FTS5 检索表创建成功。
-Novel Module 初始化完成
-```
-
-## 第六步：健康检查
+## 第七步：开始写第一章
 
 ```bash
-python novel_module/check_novel_health.py
-python scripts/check_health.py
-```
-
-确认所有表（memories, novels, chapters, characters, worldbuilding, plot_threads, writing_rules, chapter_summaries, continuity_checks, chapter_versions, reader_promises 等）和目录存在。
-
-## 第七步：创建小说目录
-
-```bash
-mkdir -p <novel_dir>/<你的小说名>/第一卷_卷名/chapters
-```
-
-修改 `novel_module/chapter_pipeline.py` 中的 `CHAPTERS_DIR` 指向你的小说目录：
-
-```python
-CHAPTERS_DIR = Path("<novel_dir>/<你的小说名>/第一卷_卷名")
-```
-
-## 第八步：开始写第一章
-
-```bash
-# 1. 写作前准备（必须——读上章结尾 + 查 SQLite）
-python novel_module/chapter_pipeline.py pre 1 --type normal
+# 1. 写作前准备（任务卡片 + 上下文）
+python novel.py pre 1 --slug <你的小说名>
 
 # 2. 撰写正文到 TXT 文件
-# 保存到: <novel_dir>/<小说名>/第一卷_卷名/第1章_标题.txt
+# 保存到: novels/<小说名>/第01卷/第1章_标题.txt
 
-# 3. 门禁检查 + 入库（字数/连续性/场景/AI腔/版本）
-python novel_module/chapter_pipeline.py post 1 --type normal
+# 3. 门禁检查 + 入库
+python novel.py post 1 --slug <你的小说名>
 ```
 
 ## 部署后目录结构
 
 ```
-novel-pipeline/                   ← 项目根目录
-├── config/config.json            ← 路径配置
-├── database/hermes_memory.db     ← SQLite 数据库
-├── novel_module/                 ← 小说模块
-│   ├── chapter_pipeline.py       ← 总控流水线
-│   ├── init_novel_module.py
-│   ├── search_novel.py
-│   ├── build_context_pack.py
-│   ├── check_novel_health.py
-│   └── export_novel_summary.py
-├── scripts/                      ← 基础脚本
-│   ├── init_db.py
-│   ├── memory_cli.py
-│   ├── backup_db.py
-│   └── check_health.py
-├── novels/<小说名>/              ← 小说项目
-│   ├── 第一卷_卷名/
+novel-pipeline-write-engine/       ← 项目根目录
+├── config.json                    ← 路径配置
+├── install.sh / install.bat       ← 安装脚本
+├── novel.py                       ← CLI 入口
+├── requirements.txt               ← Python 依赖
+├── workspace/                     ← 工作区（Multi-DB）
+│   ├── registry.json              ← 注册表
+│   ├── slot_001/                  ← 默认工作区
+│   │   ├── novel.db               ← 项目数据库
+│   │   ├── project.json           ← 项目配置
+│   │   ├── outlines/
+│   │   ├── chapters/
+│   │   ├── reports/
+│   │   ├── exports/
+│   │   └── backups/
+│   ├── slot_002/
+│   ├── slot_003/
+│   └── _trash/                    ← 回收站
+├── scripts/                       ← 核心脚本
+│   ├── db/
+│   │   ├── slot_manager.py
+│   │   └── registry.py
+│   ├── outline/
+│   ├── story/
+│   └── fts_health.py
+├── src/guards/                    ← 门禁检查
+├── configs/                       ← 配置
+├── novels/<小说名>/               ← 小说项目
+│   ├── 第01卷/
 │   │   ├── 第1章_标题.txt
 │   │   └── ...
 │   └── exports/
-│       └── pipeline_state/       ← 状态文件锁
-├── exports/                      ← 导出
-├── backups/                      ← 备份
-├── logs/                         ← 日志
-└── docs/                         ← 文档
+├── docs/                          ← 文档
+└── voice_packs/                   ← 风格包
 ```
 
 ## 常用命令
 
 ```bash
-# 写作前：加载上下文
-python novel_module/chapter_pipeline.py pre <章节号> --type normal
+# 工作区管理
+python novel.py db list              # 列出所有工作区
+python novel.py db new --name "项目名"  # 新建工作区
+python novel.py db use <slot_id>      # 切换工作区
+python novel.py db backup             # 备份当前工作区
+python novel.py db delete <slot_id> --yes  # 安全删除（移至回收站）
+python novel.py db trash              # 查看回收站
+python novel.py db restore --from-trash <名称>  # 从回收站恢复
 
-# 写作后：门禁 + 入库
-python novel_module/chapter_pipeline.py post <章节号> --type normal
+# 写作流程
+python novel.py pre <章节号> --slug <slug>     # 写作前准备
+python novel.py post <章节号> --slug <slug>    # 写作后门禁 + 入库
+python novel.py review <章节号> --slug <slug>  # 复盘
 
-# 高潮章（4200-5000 字）
-python novel_module/chapter_pipeline.py pre 10 --type climax
+# 报告与导出
+python novel.py report                        # 查看报告
+python novel.py export --slug <slug>          # 导出小说
 
-# 3 章复盘
-python novel_module/chapter_pipeline.py review 6
+# 诊断
+python novel.py status                        # 环境诊断
+python novel.py doctor                        # 详细诊断
 
-# 搜索
-python novel_module/search_novel.py <关键词> <slug> <数量>
+# 字数统计
+python novel.py wc <章节号>                   # 统计汉字数
+```
 
-# 上下文包
-python novel_module/build_context_pack.py <slug> <关键词> <章节号>
+## 迁移到其他机器
 
-# 导入 TXT
-python novel_module/import_chapter_txt.py <slug> <章节号> <标题> <TXT路径>
+```bash
+# 1. 复制整个项目目录
+cp -r novel-pipeline-write-engine /new/location/
 
-# 健康检查
-python novel_module/check_novel_health.py
+# 2. 复制小说文件
+cp -r novels/<小说名> /new/location/novels/
 
-# 备份
-python scripts/backup_db.py
+# 3. 修改 config.json 中的路径（使用 pathlib 风格正斜杠）
+# 4. 重新安装依赖: pip install -r requirements.txt
 ```
 
 ## 故障排查
 
-### "pipeline_state 缺失"
+### "workspace/ 未初始化"
 
+运行初始化命令：
+```bash
+python novel.py db init
 ```
-⛔ pipeline_state缺失
-   必须先运行: python novel_module/chapter_pipeline.py pre <N>
-```
-
-每次写新章节必须先执行 `pre`。
 
 ### "字数不达标"
 
@@ -194,25 +243,11 @@ python scripts/backup_db.py
 ⛔ 红灯失败 (< 3000) — 必须重写
 ```
 
-扩写场景动作、对话冲突、环境压力、实验过程、失败代价。**不要**末尾补空泛心理独白。
+扩写场景动作、对话冲突、环境压力。**不要**末尾补空泛心理独白。
 
-### "疑似 patch 凑数"
+### 跨平台路径问题
 
-```
-⛔ 疑似patch凑数 — 必须重铺缺失场景
-```
-
-回到 task_card 找缺失场景，从最早缩水处重铺。不要继续 patch。
-
-## 迁移到其他机器
-
-```bash
-# 1. 复制整个目录
-cp -r novel-pipeline /new/location/
-
-# 2. 复制小说文件
-cp -r <novel_dir>/<小说名> /new/location/novels/
-
-# 3. 修改 config/config.json 中的路径
-# 4. 修改 novel_module/chapter_pipeline.py 中的路径
-```
+- 配置文件中的路径统一使用正斜杠 `/`
+- Windows 上 Python pathlib 自动处理路径转换
+- 不要使用硬编码的盘符（如 `D:\`）
+- 使用相对路径时基于项目根目录（`PROJECT_ROOT`）

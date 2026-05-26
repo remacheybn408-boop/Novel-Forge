@@ -42,6 +42,13 @@ class Registry:
         data = self.load()
         return data.get("active_slot", "")
 
+    def get_active_db_path(self) -> Optional[Path]:
+        """Get the novel.db path for the currently active slot."""
+        active = self.get_active_slot()
+        if not active:
+            return None
+        return self.workspace_dir / active / "novel.db"
+
     def set_active_slot(self, slot_id: str) -> None:
         """Set the active slot ID."""
         data = self.load()

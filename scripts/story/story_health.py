@@ -48,6 +48,14 @@ def check_health(project_root: Path) -> dict:
                 f"Warning: {len(contracts)} contracts but only {len(commits)} commits — "
                 f"{len(contracts)-len(commits)} uncommitted chapters"
             )
+        # P0-3: Check for commits without matching contracts
+        for cf in commits:
+            ch_num = cf.stem.split("_")[1]
+            matching_contract = chapters_dir / f"chapter_{ch_num}_contract.json"
+            if not matching_contract.exists():
+                failures.append(
+                    f"commit {cf.stem} exists but no matching contract"
+                )
         # Check for gaps
         contract_nums = [int(f.stem.split("_")[1]) for f in contracts]
         commit_nums = [int(f.stem.split("_")[1]) for f in commits]

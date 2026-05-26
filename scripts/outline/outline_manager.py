@@ -223,7 +223,7 @@ class OutlineManager:
     # ──────────────────────────────────────────────
 
     def list_outlines(self) -> List[Dict]:
-        """列出当前 slot 所有大纲"""
+        """列出当前 slot 所有大纲，含版本关系信息"""
         active = self._get_active_slot()
         if not active:
             return []
@@ -236,18 +236,50 @@ class OutlineManager:
             data = self._read_outline_file(oid)
             if data:
                 is_active = (oid == active_id)
+
+                # ── 确定类型：active / historical / candidate ──
+                outline_type = "candidate"
+                if is_active:
+                    outline_type = "active"
+                elif data.get("outline_versions"):
+                    outline_type = "historical"
+
+                # ── 版本关系信息 ──
+                versions = data.get("outline_versions", [])
+                latest_version = versions[-1] if versions else None
+                source_version = None
+                if latest_version:
+                    source_version = {
+                        "version": latest_version.get("version"),
+                        "title": latest_version.get("title", ""),
+                        "saved_at": latest_version.get("saved_at", ""),
+                    }
+
+                # ── 相似度信息 ──
+                similarity_info = data.get("similarity_check", None)
+                similarity_score = None
+                similar_to = None
+                if similarity_info:
+                    similarity_score = similarity_info.get("overall_score") or similarity_info.get("similarity")
+                    similar_to = similarity_info.get("matched_outline") or similarity_info.get("matched_title")
+
                 result.append({
                     "id": oid,
                     "title": data.get("title", ""),
                     "chapter_count": data.get("chapter_count", 0),
                     "volume_count": data.get("volume_count", 1),
-                    "versions_count": len(data.get("outline_versions", [])),
+                    "versions_count": len(versions),
                     "created_at": data.get("created_at", ""),
                     "updated_at": data.get("updated_at", ""),
                     "active": is_active,
+                    "type": outline_type,
                     "genre": data.get("genre", ""),
                     "style": data.get("style", ""),
                     "tags": data.get("tags", []),
+                    "source_version": source_version,
+                    "similarity_score": similarity_score,
+                    "similar_to": similar_to,
+                    "source": data.get("source", "add"),
                 })
         return result
 
@@ -503,7 +535,251 @@ class OutlineManager:
         }
 
     # ──────────────────────────────────────────────
-    #  12. 分类大纲：升级/同作/新作/需确认
+    #  12. Slot 管理（用于 P0-6: 自动创建新 slot）
+    # ──────────────────────────────────────────────
+
+    def _find_idle_slot(self) -> Optional[str]:
+        """查找空闲 slot（slot_002, slot_003）或返回 None。
+        空闲 = slot 目录存在但没有 outlines/ 下的 .json 文件。
+        """
+        reg = self._get_registry()
+        slots = reg.get("slots", [])
+        active = reg.get("active_slot", "")
+
+        for s in slots:
+            sid = s.get("id", "")
+            if sid == active:
+                continue
+            # Check if this slot is idle (no outlines)
+            od = self._outlines_dir(sid)
+            jsons = list(od.glob("*.json"))
+            if not jsons or (len(jsons) == 1 and jsons[0].stem == ".gitkeep"):
+                return sid
+        return None
+
+    def _get_next_slot_id(self) -> str:
+        """自动生成下一个 slot ID (slot_004, slot_005, ...)"""
+        reg = self._get_registry()
+        slots = reg.get("slots", [])
+        max_idx = 0
+        for s in slots:
+            sid = s.get("id", "")
+            if sid.startswith("slot_"):
+                try:
+                    idx = int(sid.replace("slot_", ""))
+                    if idx > max_idx:
+                        max_idx = idx
+                except ValueError:
+                    pass
+        return f"slot_{max_idx + 1:03d}"
+
+    def _create_slot_structure(self, slot_id: str, name: str = "", description: str = "") -> Path:
+        """创建 slot 目录结构和 project.json"""
+        slot_dir = self.workspace_dir / slot_id
+        slot_dir.mkdir(parents=True, exist_ok=True)
+        for subdir in ["outlines", "chapters", "reports", "exports", "backups"]:
+            (slot_dir / subdir).mkdir(parents=True, exist_ok=True)
+
+        proj_file = slot_dir / "project.json"
+        proj_data = {
+            "name": name or slot_id,
+            "title": name or "未命名项目",
+            "active_outline": None,
+            "created_at": datetime.now().isoformat(),
+            "updated_at": datetime.now().isoformat(),
+        }
+        proj_file.write_text(json.dumps(proj_data, ensure_ascii=False, indent=2), encoding="utf-8")
+        return slot_dir
+
+    def _register_slot(self, slot_id: str, name: str = "", description: str = "") -> Dict:
+        """在 registry.json 中注册新 slot 并返回更新后的 registry"""
+        reg = self._get_registry()
+        new_slot = {
+            "id": slot_id,
+            "name": name or slot_id,
+            "description": description,
+            "status": "active",
+            "created_at": datetime.now().isoformat(),
+            "project_count": 1,
+        }
+        # 检查是否已存在
+        slots = reg.get("slots", [])
+        existing = [s for s in slots if s.get("id") == slot_id]
+        if not existing:
+            slots.append(new_slot)
+        else:
+            existing[0].update(new_slot)
+        reg["slots"] = slots
+        self._save_registry(reg)
+        return reg
+
+    def _switch_active_slot(self, slot_id: str) -> str:
+        """切换活跃 slot，返回旧的活跃 slot"""
+        reg = self._get_registry()
+        old = reg.get("active_slot", "")
+        reg["active_slot"] = slot_id
+        self._save_registry(reg)
+        return old
+
+    def add_outline_to_new_slot(self, content: str, title: str = "",
+                                 genre: str = "", style: str = "",
+                                 tags: list = None,
+                                 similarity_result: Dict = None) -> Dict:
+        """P0-6: 为新小说创建独立 slot 并导入大纲"""
+        # 1. 寻找空闲 slot 或创建新的
+        idle = self._find_idle_slot()
+        if idle:
+            slot_id = idle
+            created_new = False
+        else:
+            slot_id = self._get_next_slot_id()
+            created_new = True
+
+        # 2. 创建 slot 结构
+        slot_name = title or "未命名项目"
+        slot_dir = self._create_slot_structure(slot_id, slot_name)
+        self._register_slot(slot_id, slot_name, f"自动创建于相似度检测（低相似度）")
+
+        # 3. 导入大纲到新 slot
+        outline_id = self._generate_outline_id(title)
+        chapter_count = 0
+        for line in content.split("\n"):
+            if "第" in line and "章" in line:
+                chapter_count += 1
+
+        data = {
+            "id": outline_id,
+            "title": title,
+            "content": content,
+            "tags": tags or [],
+            "genre": genre,
+            "style": style,
+            "chapter_count": chapter_count,
+            "volume_count": 1,
+            "versions_count": 0,
+            "outline_versions": [],
+            "created_at": datetime.now().isoformat(),
+            "updated_at": datetime.now().isoformat(),
+            "source": "add",
+        }
+        if similarity_result:
+            data["similarity_check"] = similarity_result
+
+        self._write_outline_file(outline_id, data, slot_id)
+
+        # 设为激活大纲
+        proj = self._get_project_json(slot_id)
+        proj["active_outline"] = outline_id
+        proj["updated_at"] = datetime.now().isoformat()
+        self._save_project_json(proj, slot_id)
+
+        # 4. 切换到新 slot
+        old_slot = self._switch_active_slot(slot_id)
+
+        return {
+            "status": "ok",
+            "slot_id": slot_id,
+            "slot_created": created_new,
+            "old_slot": old_slot,
+            "outline_id": outline_id,
+            "title": title,
+            "chapter_count": chapter_count,
+            "similarity": similarity_result,
+        }
+
+    def add_outline_as_version(self, content: str, title: str = "",
+                                genre: str = "", style: str = "",
+                                tags: list = None,
+                                similarity_result: Dict = None,
+                                activate: bool = False) -> Dict:
+        """P0-7: 将新大纲作为当前 slot 的升级版本添加。
+        
+        Args:
+            activate: 是否立即设为激活大纲（--replace-current）
+        """
+        active = self._get_active_slot()
+        if not active:
+            return {"status": "error", "message": "没有活跃的工作区。请先运行 python novel.py db init"}
+
+        current = self.current_outline()
+
+        if current and activate:
+            # 替换模式：给当前大纲创建版本快照，然后更新内容
+            old_data = current.copy()
+            versions = self._snapshot_version(old_data)
+            
+            old_data["content"] = content
+            if title:
+                old_data["title"] = title
+            old_data["genre"] = genre or old_data.get("genre", "")
+            old_data["style"] = style or old_data.get("style", "")
+            old_data["tags"] = tags or old_data.get("tags", [])
+            old_data["outline_versions"] = versions
+            old_data["versions_count"] = len(versions)
+            old_data["updated_at"] = datetime.now().isoformat()
+            old_data["source"] = "upgrade"
+            if similarity_result:
+                old_data["similarity_check"] = similarity_result
+
+            # 重算章节数
+            chapter_count = 0
+            for line in content.split("\n"):
+                if "第" in line and "章" in line:
+                    chapter_count += 1
+            old_data["chapter_count"] = chapter_count
+
+            oid = current.get("id")
+            self._write_outline_file(oid, old_data)
+
+            return {
+                "status": "ok",
+                "mode": "replace",
+                "id": oid,
+                "title": old_data["title"],
+                "chapter_count": chapter_count,
+                "versions_count": len(versions),
+                "similarity": similarity_result,
+            }
+        else:
+            # 保存但不激活：添加为独立大纲（不设 active_outline）
+            outline_id = self._generate_outline_id(title)
+            chapter_count = 0
+            for line in content.split("\n"):
+                if "第" in line and "章" in line:
+                    chapter_count += 1
+
+            data = {
+                "id": outline_id,
+                "title": title,
+                "content": content,
+                "tags": tags or [],
+                "genre": genre,
+                "style": style,
+                "chapter_count": chapter_count,
+                "volume_count": 1,
+                "versions_count": 0,
+                "outline_versions": [],
+                "created_at": datetime.now().isoformat(),
+                "updated_at": datetime.now().isoformat(),
+                "source": "upgrade_inactive",
+            }
+            if similarity_result:
+                data["similarity_check"] = similarity_result
+
+            self._write_outline_file(outline_id, data)
+            # 不修改 active_outline，保留当前激活大纲不变
+
+            return {
+                "status": "ok",
+                "mode": "inactive",
+                "id": outline_id,
+                "title": title,
+                "chapter_count": chapter_count,
+                "similarity": similarity_result,
+            }
+
+    # ──────────────────────────────────────────────
+    #  13. 分类大纲：升级/同作/新作/需确认
     # ──────────────────────────────────────────────
 
     def classify_outline(self, outline_id: str) -> Dict:

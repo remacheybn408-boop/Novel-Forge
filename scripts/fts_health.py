@@ -20,16 +20,28 @@ from typing import Optional
 
 
 def _get_db_path(config: dict = None) -> str:
-    """Resolve DB path from config or default."""
+    """Resolve DB path from config, env var, or project-relative default.
+
+    Resolution order:
+      1. config['db_path'] — if provided in config dict
+      2. HERMES_MEMORY_DB env var
+      3. <project_root>/data/novel_memory.db — project-relative (cross-platform)
+      4. ~/.novel-pipeline/hermes_memory.db — user home fallback
+    """
     if config:
         db = config.get("db_path", "")
         if db:
             return db
-    # Fallback: use HERMES_MEMORY_DB env var or default relative path
+    # Check environment variable
     env_db = os.environ.get("HERMES_MEMORY_DB", "")
     if env_db:
         return env_db
-    return str(Path.home() / "HermesMemoryBase" / "database" / "hermes_memory.db")
+    # Project-relative default (does not depend on project_root import)
+    project_db = Path(__file__).resolve().parent.parent / "data" / "novel_memory.db"
+    if project_db.exists():
+        return str(project_db)
+    # User home fallback
+    return str(Path.home() / ".novel-pipeline" / "hermes_memory.db")
 
 
 def find_fts5_tables(conn: sqlite3.Connection) -> list[str]:

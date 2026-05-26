@@ -229,7 +229,14 @@ def export_novel(
     if not chapters:
         return {
             "status": "warning",
-            "message": f"No chapters found for '{slug}' (chapter range {from_ch}-{to_ch or 'end'}).",
+            "message": f"「{novel.get('title', slug)}」还没有任何章节哦 📭\n\n"
+                       f"  目前章节范围 {from_ch}~{to_ch or '结束'} 内没有找到内容。\n"
+                       f"  这本书需要先写一些章节才能导出。\n\n"
+                       f"  提示：\n"
+                       f"  1. 检查是否在正确的作品中（python novel.py db current）\n"
+                       f"  2. 确认已添加大纲（python novel.py outline list）\n"
+                       f"  3. 使用「生成写前任务卡」和「写后门禁检查」来写新章节\n"
+                       f"  4. 章节写完后会自动入库，届时即可导出",
             "chapters_exported": 0,
         }
 
