@@ -13,6 +13,13 @@ doctor.py — 环境诊断工具 v0.5.0
 import sys, os, json, sqlite3
 from pathlib import Path
 from version import get_version
+try:
+    from config_utils import normalize_config, resolve_path
+except Exception:
+    def normalize_config(cfg): return cfg
+    def resolve_path(root, value):
+        p = Path(value)
+        return p if p.is_absolute() else Path(root) / p
 
 PROJECT_ROOT = Path(__file__).parent.parent
 
@@ -49,9 +56,9 @@ def main():
     if config_path.exists():
         check("config.json", True)
         try:
-            cfg = json.loads(config_path.read_text(encoding="utf-8"))
+            cfg = normalize_config(json.loads(config_path.read_text(encoding="utf-8")))
             db_path = cfg.get("db_path", "")
-            check("  db_path 配置", bool(db_path), db_path)
+            all_ok &= check("  db_path 配置", bool(db_path), db_path)
         except:
             all_ok &= check("config.json 可解析", False)
     else:
@@ -60,10 +67,8 @@ def main():
     # 4. 数据库
     if config_path.exists():
         try:
-            cfg = json.loads(config_path.read_text(encoding="utf-8"))
-            db_path = Path(cfg.get("db_path", "./data/novel_memory.db"))
-            if not db_path.is_absolute():
-                db_path = PROJECT_ROOT / db_path
+            cfg = normalize_config(json.loads(config_path.read_text(encoding="utf-8")))
+            db_path = resolve_path(PROJECT_ROOT, cfg.get("db_path", "./data/novel_memory.db"))
             if db_path.exists():
                 check("数据库文件", True, str(db_path))
                 conn = sqlite3.connect(str(db_path))

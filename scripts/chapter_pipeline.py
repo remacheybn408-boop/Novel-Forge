@@ -32,6 +32,10 @@ Human-Grade Revision Suite (v0.4.0, WARNING only, compliance_selfcheck 可 BLOCK
 import sqlite3, re, sys, json, argparse
 from pathlib import Path
 from datetime import datetime
+try:
+    from config_utils import normalize_config
+except Exception:
+    def normalize_config(cfg): return cfg
 
 
 # ============================================================
@@ -58,21 +62,22 @@ DEFAULT_CONFIG = {
 
 
 def load_config(config_path=None):
-    """加载配置：优先 CLI 指定的 --config，否则从默认路径尝试"""
+    """加载配置：兼容旧顶层字段和新 nested 字段。"""
+    def _load(path):
+        with open(path, 'r', encoding='utf-8') as f:
+            user_cfg = json.load(f)
+        return {**DEFAULT_CONFIG, **normalize_config(user_cfg)}
+
     if config_path:
         try:
-            with open(config_path, 'r', encoding='utf-8') as f:
-                cfg = json.load(f)
-            return {**DEFAULT_CONFIG, **cfg}
+            return _load(config_path)
         except FileNotFoundError:
-            pass  # fall through to defaults
+            pass
 
     for candidate in ["config.json", "config.example.json"]:
         if Path(candidate).exists():
-            with open(candidate, 'r', encoding='utf-8') as f:
-                cfg = json.load(f)
-            return {**DEFAULT_CONFIG, **cfg}
-    return DEFAULT_CONFIG
+            return _load(candidate)
+    return normalize_config(DEFAULT_CONFIG)
 
 
 # ============================================================

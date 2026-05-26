@@ -29,6 +29,10 @@ import sqlite3
 import argparse
 from pathlib import Path
 from datetime import datetime
+try:
+    from config_utils import normalize_config
+except Exception:
+    def normalize_config(cfg): return cfg
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent
@@ -41,7 +45,7 @@ def load_config(config_path: str) -> dict:
     p = Path(config_path)
     if p.exists():
         try:
-            cfg = json.loads(p.read_text(encoding="utf-8"))
+            cfg = normalize_config(json.loads(p.read_text(encoding="utf-8")))
         except Exception as e:
             print(f"[WARN] Cannot parse config: {e}", file=sys.stderr)
     return cfg

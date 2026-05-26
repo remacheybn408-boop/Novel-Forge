@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.6.0 - Story Contract CLI Release (2026-05-26)
+
+- 新增 Story Contract 命令组：story init / contract / commit / health
+- 新增 query / learn / board 项目记忆和只读状态看板
+- 修复 nested config(paths/novel/gates) 与旧脚本顶层字段不兼容的问题
+- 修复 init 建库路径与 status 检查路径不一致的问题
+- 修复 demo 未先运行 pre 导致 post 必失败的问题
+- 清理发布包中的旧后端残留、.vite 缓存、嵌套 write-engine 副本和乱码 README
+- 修复 tests/test_agent_run_guard.py 子进程测试不稳定问题，296 tests 全绿
+
 ## v0.5.6 - Clean CLI Release (2026-05-26)
 
 ### Fixed

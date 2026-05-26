@@ -9,6 +9,10 @@ init_db.py — 数据库初始化脚本
 
 import sqlite3, sys, argparse, json, os
 from pathlib import Path
+try:
+    from config_utils import normalize_config
+except Exception:
+    def normalize_config(cfg): return cfg
 
 
 def load_config(config_path=None):
@@ -18,8 +22,8 @@ def load_config(config_path=None):
     if config_path and Path(config_path).exists():
         with open(config_path, 'r', encoding='utf-8') as f:
             user_cfg = json.load(f)
-        cfg.update(user_cfg)
-    return cfg
+        cfg.update(normalize_config(user_cfg))
+    return normalize_config(cfg)
 
 
 def find_schema(script_dir):

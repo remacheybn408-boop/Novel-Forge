@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-novel.py — Novel Pipeline Write Engine CLI v0.5.6
+novel.py — Novel Pipeline Write Engine CLI v0.6.0
 
 Top-level entry point wrapping chapter_pipeline, doctor, and report tools.
 
@@ -27,6 +27,21 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 if str(SRC_GUARDS_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_GUARDS_DIR))
+
+from config_utils import normalize_config, load_json_config, resolve_path
+
+
+def _load_project_config() -> dict:
+    """Load config.json/config.example.json using the shared compatibility layer."""
+    cfg_path = PROJECT_ROOT / "config.json"
+    if cfg_path.exists():
+        return load_json_config(cfg_path, PROJECT_ROOT)
+    return load_json_config(PROJECT_ROOT / "config.example.json", PROJECT_ROOT)
+
+
+def _cfg_path(key: str, default: str) -> Path:
+    cfg = _load_project_config()
+    return resolve_path(PROJECT_ROOT, cfg.get(key, default))
 
 
 def cmd_status():
@@ -92,130 +107,108 @@ def cmd_status():
 
 
 def cmd_demo():
-    """Create demo_novel with real chapter file, ingest to DB, show report."""
+    """Create demo_novel, run pre -> post, then show report location."""
     print("=" * 60)
     v = get_version()
     print(f"  Novel Pipeline - Write Engine {v}")
-    print("  Demo Setup")
+    print("  Demo Pipeline")
     print("=" * 60)
     print()
 
-    # Run init first if config is missing
     cfg_path = PROJECT_ROOT / "config.json"
     if not cfg_path.exists():
         print("[STEP 1] Initializing project...")
         cmd_init()
         print()
-        step = 2
     else:
-        print("[STEP 1] config.json found, project already initialized.")
-        step = 2
+        print("[STEP 1] config.json found.")
 
-    # Create demo_novel directories and files
-    # For demo, always use project-relative novels directory
-    novels_root = PROJECT_ROOT / "novels"
-    demo_dir = novels_root / "demo_novel"
-    vol_dir = demo_dir / "第01卷"
+    cfg_data = _load_project_config()
+    db_path = resolve_path(PROJECT_ROOT, cfg_data.get("db_path", "./data/novel_memory.db"))
+    if not db_path.exists():
+        print("  Database missing, initializing now...")
+        cmd_init()
+        cfg_data = _load_project_config()
+        db_path = resolve_path(PROJECT_ROOT, cfg_data.get("db_path", "./data/novel_memory.db"))
+
+    slug = cfg_data.get("default_novel_slug", "demo_novel")
+    title = cfg_data.get("default_novel_title", "Demo Novel")
+    novels_root = resolve_path(PROJECT_ROOT, cfg_data.get("novels_root", "./novels"))
+    vol_dir = novels_root / slug / "第01卷"
     vol_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"\n[STEP {step}] Creating demo_novel chapter...")
-    print(f"  novels/demo_novel/")
-    print(f"  novels/demo_novel/第01卷/")
-
-    # Write demo chapter with real Chinese content (~2000 chars)
-    demo_content = (
-        "第1章 开篇\n\n"
-        "清晨的阳光穿过窗棂，洒在陈旧的木桌上。李明远缓缓睁开眼睛，耳边传来熟悉的鸟鸣声。窗外，几只翠鸟在枝头跳来跳去，叽叽喳喳地叫个不停。这是他最喜欢的时刻——天地初醒，万物复苏，整个世界都笼罩在一层温柔的金色光芒中。\n\n"
-        "这是他来到青云宗的第三年。三年前，他还只是山下渔村里的一个普通少年，每天跟着父亲出海打鱼，过着平凡而单调的生活。那时的他从未想过，自己有朝一日会踏入修仙之路，成为一名真正的修士。命运的转折发生在一个暴风雨的夜晚——他的渔船被巨浪掀翻，他在海中挣扎求生，绝望之际，怀里那枚母亲留下的玉佩突然发出耀眼光芒，不仅救了他一命，还让他觉醒了灵根。\n\n"
-        "\u201c远哥，该去练功了！\u201d门外传来师弟小石头清脆的声音。小石头本名石磊，是两年前被宗门从难民中收留的孤儿，因为年纪最小，个子也最矮，大家都叫他小石头。这孩子虽然资质平平，却比任何人都勤奋，每天天不亮就起来练功，从不偷懒。\n\n"
-        "李明远翻身坐起，目光落在床头那枚已经暗淡无光的玉佩上。那是母亲留给他的唯一遗物，通体碧绿，上面刻着一些他至今无法理解的古文字。自从三年前意外激活之后，他的命运就彻底改变了——从一个平凡的渔家少年，变成了青云宗的外门弟子。但三年过去了，他始终停留在炼气期第三层，在同批入门的弟子中只能算是中游水平。\n\n"
-        "\u201c来了。\u201d他应了一声，简单洗漱后推门而出。\n\n"
-        "练功场上，数十名外门弟子已经开始了晨练。剑光闪烁，拳风呼啸，空气中弥漫着汗水与青草混合的气息。有些弟子在练习基础剑法，一招一式虽然生涩，却也透着一股不服输的劲头；另一些则在打坐吐纳，试图感应天地间的灵气。远处还有几个师兄在切磋对战，你来我往，打得虎虎生风。\n\n"
-        "\u201c明远来了！\u201d一个身材魁梧的青年大步走来，脸上带着爽朗的笑容。此人名叫赵铁柱，是外门弟子中修为最高的几人之一，天生神力，一双铁拳在同辈中罕有对手。他修炼的是青云宗最为刚猛的《铁骨功》，据说已经快要突破炼气期第六层，距离内门只差一步之遥。\u201c昨日你那一剑可真是厉害，连王教习都夸你有天赋。\u201d\n\n"
-        "李明远微微一笑，谦逊地摇了摇头：\u201c赵师兄过奖了，不过是运气好罢了。\u201d\n\n"
-        "他说的是实话。每次修炼时，那枚玉佩都会在他体内引导真气，走出一条与青云宗正传心法截然不同的路径。这条路更加艰险，也更加玄妙。他不知道自己修炼的到底是什么功法，但他能感觉到，这股力量远比表面看起来要强大得多。\n\n"
-        "\u201c都给我站好了！\u201d一声洪亮的嗓音打断了众人的喧闹。\n\n"
-        "王教习大步走上练功场中央，目光如电，扫过在场的每一名弟子。他年过六旬，须发皆白，但腰杆挺得笔直，浑身散发着一股不怒自威的气势。作为青云宗资格最老的外门教习，他教导过的弟子没有一千也有八百。据说早年间他也曾是内门弟子，只因在一次秘境探险中伤了根基，这才退居外门担任教习。\n\n"
-        "\u201c今日有大长老前来巡视，尔等务必打起十二分精神！\u201d王教习的声音低沉而威严，每一个字都像钉子一样砸在众人心头，\u201c大长老乃我青云宗三大元老之一，执掌戒律堂多年，最是眼里揉不得沙子。谁要是出了岔子，莫怪老夫不讲情面！\u201d\n\n"
-        "此言一出，全场鸦雀无声。弟子们不由自主地挺直了脊背，就连平时最散漫的几个也收起了嬉皮笑脸。李明远注意到，连一向大大咧咧的赵铁柱都变得异常严肃，额头隐隐渗出了汗珠。大长老的威名，在外门弟子中无人不知。\n\n"
-        "李明远心中却莫名地涌起一阵不安。他下意识地握紧了挂在胸前的玉佩，一股若有若无的凉意从掌心传来，仿佛在提醒他什么。他抬头望向远处的山峰，那里是内门所在的区域，云雾缭绕，隐隐有灵光闪烁。\n\n"
-        "他有一种直觉——这场巡视，恐怕不只是例行公事那么简单。\n\n"
-        "而那枚玉佩，似乎正在用它的方式告诉他：危险，正在靠近。\n"
-    )
+    print("\n[STEP 2] Creating demo chapter...")
+    paragraphs = [
+        "第1章 开篇",
+        "清晨的钟声从青云宗山腰传来，像一根细线，把外门弟子从浅睡里一一拽醒。李明远坐在窄床边，先没有急着穿鞋，而是低头看向掌心那枚旧玉佩。玉佩的边缘有一道细裂，裂纹像凝住的水波，三年来从未扩大，也从未消失。",
+        "他来到青云宗已经第三年。三年前，他还只是海边渔村里的少年，每天跟着父亲补网、看潮、记风向。那场暴风雨把渔船掀翻时，他以为自己会沉进海底，偏偏胸口的玉佩发出一点冷光，把他推上了岸，也把他推到了修行人的门槛前。",
+        "门外传来小石头的声音：\"远哥，王教习让我们提前到练功场，说今日有长老巡视。\"小石头说话总带着一点慌张，像随时准备把自己缩进墙角。他本名石磊，因为个子小，入门又晚，所有人都叫他小石头，只有李明远还会认真叫他一声师弟。",
+        "李明远把玉佩塞回衣襟，推门出去。晨雾还没有散，练功场的青砖上凝着水汽，几十名外门弟子已经排成三列。有人在压腿，有人默背心法，也有人趁王教习没到，偷偷用余光打量山道尽头。今日的气氛很不对，连平日爱说笑的赵铁柱都闭着嘴，双手按在膝上，一下一下调整呼吸。",
+        "王教习终于来了。他须发皆白，步子却稳，木杖点在砖面上，声声清脆。\"今日大长老巡视外门，谁若在基础功上偷奸耍滑，老夫先罚，戒律堂再罚。\"这句话不重，却让人背脊发紧。外门弟子最怕的不是挨骂，而是被记入戒律堂的黑册，一旦名字落上去，日后进内门几乎无望。",
+        "赵铁柱压低声音道：\"明远，你昨晚是不是又练到后半夜？脸色不太对。\"李明远摇摇头，没有解释。他昨夜确实没睡好，但不是因为修炼，而是因为玉佩第一次在无人触碰时自己发热。那股热意顺着胸口往丹田走，像有人在他体内画了一条陌生的经脉路线。",
+        "王教习开始点名。每点到一人，便让其演示三式基础剑法。轮到李明远时，周围忽然安静下来。他的修为只是炼气三层，算不上拔尖，可他的剑路总有些古怪，明明用的是最普通的青云十三式，落点却比旁人更准，像每一剑都提前知道风会往哪里吹。",
+        "李明远握住木剑，第一式平平推出。剑尖划过雾气，雾线被割开，又在他身后缓慢合拢。第二式转腕时，他胸前玉佩忽然一烫，丹田里的真气不受控制地偏了半寸。只是半寸，木剑却发出一声轻鸣，练功场边的铜铃无风自响。",
+        "所有人都愣住了。王教习的眼神骤然锐利，大步走到李明远面前，伸手扣住他的腕脉。李明远只觉得一股外来的灵力沿着手腕探入体内，还没碰到玉佩所在的位置，就被一层冰冷的阻力挡了回去。王教习脸色微变，随即松手，低声道：\"今日之后，你不要一个人去后山。\"",
+        "这句话来得突兀，小石头吓得脸都白了。赵铁柱想问，却被王教习一个眼神压回去。李明远心里那点不安终于落成了实物：不是他多想，玉佩真的被人察觉了。更糟的是，察觉的人未必只有王教习。",
+        "山道上，三名内门弟子簇拥着一位青袍老者缓缓走来。老者眉目清瘦，袖口绣着戒律堂的玄色云纹，正是外门弟子口中最不愿遇见的大长老。他的目光扫过练功场，最后停在李明远身上，停得比任何人都久。",
+        "李明远低下头，手指按住衣襟里的玉佩。玉佩已经恢复冰凉，可那道裂纹里似乎多了一点极淡的金色。它像一只刚睁开的眼睛，在沉默里看着所有人。",
+        "大长老没有立刻说话，只是对王教习点了点头。王教习会意，宣布今日晨练改为根骨复测。人群顿时骚动起来。根骨复测一年一次，通常只为筛选升入内门的弟子，绝不会临时提前。李明远听见身后有人倒吸冷气，也听见小石头小声念了一句：\"完了，肯定有人要倒霉。\"",
+        "李明远没有回头。他知道那个人很可能就是自己。可他也清楚，若今日退缩，玉佩的秘密未必能保住，自己的路也会被别人安排。三年来，他第一次生出一个明确的念头：他不能再只做外门里那个安静听话的弟子。",
+        "铜铃第二次响起时，雾气终于散开。阳光落在练功场中央，也落在大长老面前那块测灵石上。李明远向前一步，掌心贴上冰冷的石面。下一瞬，测灵石深处亮起一道从未在外门出现过的青金色细线，像雷光，也像裂开的命运。",
+    ]
+    demo_content = "\n\n".join(paragraphs) + "\n"
     chapter_file = vol_dir / "第1章_开篇.txt"
     chapter_file.write_text(demo_content, encoding="utf-8")
     cn_count = sum(1 for c in demo_content if '\u4e00' <= c <= '\u9fff' or '\u3400' <= c <= '\u4dbf')
-    print(f"  [OK] novels/demo_novel/第01卷/第1章_开篇.txt ({cn_count} 汉字)")
+    print(f"  [OK] {chapter_file.name} ({cn_count} 汉字)")
 
-    # Register demo novel in database using config's db_path
+    outline_file = novels_root / slug / "outline.txt"
+    outline_file.write_text(
+        "# Demo Novel 大纲\n\n第一卷：初入宗门。第1章：外门晨练，玉佩异动，大长老临时复测根骨。\n",
+        encoding="utf-8",
+    )
+    print(f"  [OK] {outline_file.name}")
+
+    print("\n[STEP 3] Registering demo_novel in database...")
     try:
-        import sqlite3, json
-        db_path = PROJECT_ROOT / "data" / "novel_memory.db"
-        if cfg_path.exists():
-            try:
-                cfg_data = json.loads(cfg_path.read_text(encoding="utf-8"))
-                # Check both top-level and paths.db_path
-                dp = cfg_data.get("db_path") or cfg_data.get("paths", {}).get("db_path")
-                if dp:
-                    db_path = Path(dp)
-                    if not db_path.is_absolute():
-                        db_path = PROJECT_ROOT / db_path
-            except: pass
+        import sqlite3
         db_path.parent.mkdir(parents=True, exist_ok=True)
         conn = sqlite3.connect(str(db_path))
-        conn.execute("INSERT OR IGNORE INTO novels (slug, title, genre, style, status) VALUES (?, ?, ?, ?, ?)",
-                    ("demo_novel", "Demo Novel", "xianxia", "webnovel", "writing"))
+        conn.execute("INSERT OR IGNORE INTO novels (slug, title, genre, status) VALUES (?, ?, ?, ?)",
+                     (slug, title, cfg_data.get("default_genre", "xianxia"), "writing"))
+        novel_id = conn.execute("SELECT id FROM novels WHERE slug=?", (slug,)).fetchone()[0]
+        conn.execute("INSERT OR IGNORE INTO volumes (novel_id, volume_no, title) VALUES (?, ?, ?)",
+                     (novel_id, 1, "第一卷"))
         conn.commit()
         conn.close()
-        print("  [OK] demo_novel registered in database")
+        print("  [OK] registered")
     except Exception as e:
-        print(f"  [WARN] Could not register in DB: {e}")
+        print(f"  [ERROR] database registration failed: {e}")
+        return 1
 
-    # Write demo outline
-    outline_content = (
-        "# 演示小说 大纲\n\n"
-        "## 第一卷：初入宗门\n\n"
-        "### 第1章 开篇\n"
-        "- 主角李明远是青云宗外门弟子，身怀神秘玉佩\n"
-        "- 大长老巡视在即，主角心中不安\n"
-        "- 引入宗门世界和修炼体系的基本设定\n\n"
-        "### 第2章 考验\n"
-        "- 大长老的巡视带有深层目的\n"
-        "- 主角在考验中展露异常天赋\n"
-        "- 埋下后续冲突的伏笔\n\n"
-        "### 第3章 暗流\n"
-        "- 宗门内部势力开始关注主角\n"
-        "- 主角面临选择：隐藏实力还是脱颖而出\n"
-        "- 第一条支线展开\n"
-    )
-    outline_file = demo_dir / "outline.txt"
-    outline_file.write_text(outline_content, encoding="utf-8")
-    print(f"  [OK] novels/demo_novel/outline.txt")
-
-    # Run post to ingest chapter to DB
-    step += 1
-    print(f"\n[STEP {step}] Running post-write guard + ingest...")
-    print(f"  python novel.py post 1 --slug demo_novel")
     import subprocess as _sp
-    result = _sp.run(
-        [sys.executable, str(PROJECT_ROOT / "novel.py"), "post", "1", "--slug", "demo_novel"],
-        cwd=str(PROJECT_ROOT), timeout=300
-    )
-    if result.returncode != 0:
-        print(f"\n[WARN] post returned exit code {result.returncode}")
-    else:
-        print(f"  [OK] Chapter ingested to DB")
+    print("\n[STEP 4] Running pre-write gate...")
+    pre_result = _sp.run([sys.executable, str(PROJECT_ROOT / "novel.py"), "pre", "1", "--slug", slug],
+                         cwd=str(PROJECT_ROOT), timeout=180)
+    if pre_result.returncode != 0:
+        print(f"  [FAIL] pre returned exit code {pre_result.returncode}")
+        return pre_result.returncode
 
-    step += 1
-    print(f"\n[STEP {step}] Demo complete!")
-    print(f"  Report: exports/reports/ (run 'python novel.py report' to view)")
-    print(f"  Chapter: novels/demo_novel/第01卷/第1章_开篇.txt ({cn_count} 汉字)")
+    print("\n[STEP 5] Running post-write guards + ingest...")
+    post_result = _sp.run([sys.executable, str(PROJECT_ROOT / "novel.py"), "post", "1", "--slug", slug],
+                          cwd=str(PROJECT_ROOT), timeout=300)
+    if post_result.returncode != 0:
+        print(f"  [FAIL] post returned exit code {post_result.returncode}")
+        return post_result.returncode
+
+    print("\n[STEP 6] Demo complete!")
+    print("  Report: python novel.py report")
+    print(f"  Chapter: {chapter_file}")
     print()
     print("=" * 60)
-    print("  Demo setup complete.")
+    print("  Demo pipeline passed.")
     print("=" * 60)
     return 0
-
 
 def cmd_report():
     """Show most recent guard reports and exports."""
@@ -226,22 +219,13 @@ def cmd_report():
     print("=" * 60)
     print()
 
-    # Read exports_root from config
-    cfg_path = PROJECT_ROOT / "config.json"
-    exports_root = None
-    try:
-        cfg_data = json.loads(cfg_path.read_text(encoding="utf-8"))
-        exports_root = cfg_data.get("exports_root")
-    except Exception:
-        pass
-
-    reports_dir = Path(exports_root) / "reports" if exports_root else PROJECT_ROOT / "exports" / "reports"
+    cfg_data = _load_project_config()
+    reports_dir = resolve_path(PROJECT_ROOT, cfg_data.get("reports_root", "./exports/reports"))
     if not reports_dir.exists():
         print("  No reports directory found.")
         print(f"  Expected: {reports_dir}")
         return 0
 
-    # Find all report files
     all_reports = sorted(reports_dir.rglob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
 
     if not all_reports:
@@ -251,20 +235,16 @@ def cmd_report():
     print(f"  Found {len(all_reports)} report files in {reports_dir}")
     print()
 
-    # Show the 10 most recent
-    for i, rp in enumerate(all_reports[:10]):
+    for rp in all_reports[:10]:
         mtime = datetime.fromtimestamp(rp.stat().st_mtime).strftime("%Y-%m-%d %H:%M")
         size = rp.stat().st_size
         size_str = f"{size:,}B" if size < 1024 else f"{size/1024:.1f}KB"
-
-        # Try to read the status from the report
         status = "?"
         try:
             data = json.loads(rp.read_text(encoding="utf-8"))
             status = data.get("status", data.get("overall_status", "?"))
         except Exception:
             pass
-
         rel_path = rp.relative_to(reports_dir)
         print(f"  [{status:5s}] {mtime}  {size_str:>8s}  {rel_path}")
 
@@ -273,7 +253,6 @@ def cmd_report():
 
     print()
     return 0
-
 
 def cmd_guards():
     """List registered guards and their status."""
@@ -407,7 +386,7 @@ def cmd_wc(file_path: str = None):
     try:
         cfg_path = PROJECT_ROOT / "config.json"
         if cfg_path.exists():
-            cfg_data = json.loads(cfg_path.read_text(encoding="utf-8"))
+            cfg_data = _load_project_config()
             wc_cfg = cfg_data.get("word_count", {})
             normal = wc_cfg.get("normal", {})
             wc_min = normal.get("min", wc_min)
@@ -436,57 +415,57 @@ def cmd_init():
     print("=" * 60)
     print()
 
-    # Check for config.json
-    cfg = PROJECT_ROOT / "config.json"
-    if not cfg.exists():
+    cfg_path = PROJECT_ROOT / "config.json"
+    if not cfg_path.exists():
         example = PROJECT_ROOT / "config.example.json"
         if example.exists():
             import shutil
-            shutil.copy(example, cfg)
+            shutil.copy(example, cfg_path)
             print("  [OK] config.json created from config.example.json")
         else:
             print("  [WARN] config.example.json not found")
     else:
         print("  [OK] config.json already exists")
 
-    # Init DB
+    cfg_data = _load_project_config()
+
     print()
     print("  Initializing database...")
     try:
         from init_db import init_db as db_init
-        import json as _json
-        with open(cfg, encoding="utf-8") as f:
-            config = _json.load(f)
-        db_path = config.get("db_path", str(PROJECT_ROOT / "novel_memory.db"))
+        db_path = resolve_path(PROJECT_ROOT, cfg_data.get("db_path", "./data/novel_memory.db"))
         schema = PROJECT_ROOT / "database" / "schema.sql"
         if not schema.exists():
             print("  [WARN] schema.sql not found, skipping DB init")
         else:
-            # Ensure db directory exists
-            Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+            db_path.parent.mkdir(parents=True, exist_ok=True)
             db_init(str(db_path), str(schema))
             print(f"  [OK] Database initialized: {db_path}")
     except Exception as e:
         print(f"  [WARN] DB init error: {e}")
 
-    # Create directories
-    dirs = ["outputs/task_cards", "outputs/reviews", "exports", "exports/reports", "tmp"]
+    dirs = [
+        cfg_data.get("novels_root", "./novels"),
+        cfg_data.get("outputs_root", "./outputs"),
+        str(Path(cfg_data.get("outputs_root", "./outputs")) / "task_cards"),
+        str(Path(cfg_data.get("outputs_root", "./outputs")) / "reviews"),
+        cfg_data.get("exports_root", "./exports"),
+        cfg_data.get("reports_root", "./exports/reports"),
+        cfg_data.get("tmp_root", "./tmp"),
+    ]
     for d in dirs:
-        p = PROJECT_ROOT / d
+        p = resolve_path(PROJECT_ROOT, d)
         p.mkdir(parents=True, exist_ok=True)
-        print(f"  [OK] Directory created: {d}")
+        print(f"  [OK] Directory ready: {p.relative_to(PROJECT_ROOT) if p.is_relative_to(PROJECT_ROOT) else p}")
 
     print()
     print("  Project initialized. Run 'python novel.py demo' to test.")
     return 0
 
-
-def _get_default_slug(cfg_path):
+def _get_default_slug(cfg_path=None):
     """Resolve default novel slug from config.json."""
     try:
-        import json as _json
-        _cfg = _json.load(open(cfg_path, encoding="utf-8"))
-        return _cfg.get("default_novel_slug", "demo_novel")
+        return _load_project_config().get("default_novel_slug", "demo_novel")
     except Exception:
         return "demo_novel"
 
@@ -529,11 +508,11 @@ def cmd_post(chapter_no: str = None, slug: str = None, volume_no: str = None, fi
                "--config", str(cfg), "--novel-slug", slug]
         if volume_no: cmd.extend(["--volume-no", str(volume_no)])
         if file_path:
-            from pathlib import Path
             cmd.extend(["--chapters-dir", str(Path(file_path).parent)])
         else:
-            # Always pass chapters-dir using project-relative path
-            cmd.extend(["--chapters-dir", str(PROJECT_ROOT / "novels" / slug / "第01卷")])
+            vol = int(volume_no or 1)
+            novels_root = Path(_get_novels_root(cfg))
+            cmd.extend(["--chapters-dir", str(novels_root / slug / f"第{vol:02d}卷")])
         result = subprocess.run(cmd, cwd=str(PROJECT_ROOT), timeout=300)
         if result.returncode != 0:
             return result.returncode
@@ -549,7 +528,6 @@ def cmd_post(chapter_no: str = None, slug: str = None, volume_no: str = None, fi
                 # Try to read word count from the chapter file
                 wc = 0
                 if file_path:
-                    from pathlib import Path
                     ch_fp = Path(file_path)
                 else:
                     novels_root = _get_novels_root(cfg)
@@ -565,9 +543,8 @@ def cmd_post(chapter_no: str = None, slug: str = None, volume_no: str = None, fi
                 guard_summary = {}
                 try:
                     import json as _json
-                    cfg_data = _json.loads(cfg.read_text(encoding="utf-8"))
-                    exports_root = cfg_data.get("exports_root", str(PROJECT_ROOT / "exports"))
-                    reports_dir = Path(exports_root) / "reports"
+                    cfg_data = _load_project_config()
+                    reports_dir = resolve_path(PROJECT_ROOT, cfg_data.get("reports_root", "./exports/reports"))
                     if reports_dir.exists():
                         reports = sorted(reports_dir.rglob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
                         if reports:
@@ -596,13 +573,11 @@ def cmd_post(chapter_no: str = None, slug: str = None, volume_no: str = None, fi
         return 1
 
 
-def _get_novels_root(cfg_path):
+def _get_novels_root(cfg_path=None):
     """Read novels_root from config."""
     try:
-        import json as _json
-        with open(cfg_path, encoding="utf-8") as f:
-            c = _json.load(f)
-        return c.get("novels_root", str(PROJECT_ROOT / "novels"))
+        cfg = _load_project_config()
+        return str(resolve_path(PROJECT_ROOT, cfg.get("novels_root", "./novels")))
     except Exception:
         return str(PROJECT_ROOT / "novels")
 
@@ -638,8 +613,8 @@ def cmd_export(slug: str = None, fmt: str = "md"):
     try:
         import subprocess
         args = [sys.executable, str(SCRIPTS_DIR / "export_novel.py"),
-                "--slug", slug, "--format", fmt,
-                "--output", str(PROJECT_ROOT / "exports" / f"{slug}_full{ext}")]
+                "--slug", slug, "--config", str(PROJECT_ROOT / "config.json"), "--format", fmt,
+                "--output", str(resolve_path(PROJECT_ROOT, _load_project_config().get("exports_root", "./exports")) / f"{slug}_full{ext}")]
         result = subprocess.run(args, cwd=str(PROJECT_ROOT), timeout=60)
         if result.returncode == 0:
             print(f"  [OK] Exported to exports/{slug}_full{ext}")
@@ -663,9 +638,9 @@ def cmd_agents(args):
         cfg_path = PROJECT_ROOT / "config.json"
         _cfg = {}
         if cfg_path.exists():
-            _cfg = _json.load(open(cfg_path, encoding="utf-8"))
+            _cfg = _load_project_config()
         slug = getattr(args, "slug", None) or _cfg.get("default_novel_slug", "demo_novel")
-        novels_root = _cfg.get("novels_root", str(PROJECT_ROOT / "novels"))
+        novels_root = resolve_path(PROJECT_ROOT, _cfg.get("novels_root", "./novels"))
         ch_dir = Path(novels_root) / slug / "第01卷"
         candidates = list(ch_dir.glob(f"第{chapter_no}章*.txt"))
         if not candidates:
@@ -1000,7 +975,7 @@ def cmd_board(args):
     if cfg.exists():
         import json as _json
         try:
-            cfg_data = _json.loads(cfg.read_text(encoding="utf-8"))
+            cfg_data = _load_project_config()
             slug = cfg_data.get("default_novel_slug", "?")
             genre = cfg_data.get("default_genre", "?")
             style = cfg_data.get("default_style", "?")
@@ -1020,9 +995,9 @@ def cmd_board(args):
     if cfg.exists():
         import json as _json
         try:
-            cfg_data = _json.loads(cfg.read_text(encoding="utf-8"))
+            cfg_data = _load_project_config()
             slug = cfg_data.get("default_novel_slug", "demo_novel")
-            novels_root = cfg_data.get("novels_root", str(PROJECT_ROOT / "novels"))
+            novels_root = resolve_path(PROJECT_ROOT, cfg_data.get("novels_root", "./novels"))
             ch_dir = Path(novels_root) / slug / "第01卷"
             if ch_dir.exists():
                 chapters = sorted(ch_dir.glob("第*章*.txt"))
@@ -1041,8 +1016,8 @@ def cmd_board(args):
     try:
         db_cfg = PROJECT_ROOT / "config.json"
         if db_cfg.exists():
-            cfg_data = _json.loads(db_cfg.read_text(encoding="utf-8"))
-            db_path = cfg_data.get("db_path", str(PROJECT_ROOT / "data" / "novel_memory.db"))
+            cfg_data = _load_project_config()
+            db_path = cfg_data.get("db_path", "./data/novel_memory.db")
         else:
             db_path = str(PROJECT_ROOT / "data" / "novel_memory.db")
         dbp = Path(db_path)

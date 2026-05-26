@@ -1,7 +1,7 @@
 """
 test_agent_run_guard.py — Quality Guard 测试 (V5: chapter_type不强制下限)
 """
-import pytest, json, tempfile, sys, os, subprocess
+import pytest, json, tempfile, sys, os, io, contextlib, importlib
 from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'scripts'))
@@ -10,10 +10,17 @@ GUARD_SCRIPT = Path(__file__).parent.parent / "scripts" / "agent_run_guard.py"
 
 
 def _run_guard(report_dict):
+    """Run agent_run_guard in-process.
+
+    The old version spawned a Python subprocess for every assertion. On some
+    CI/local shells that became slow or flaky because all cases reused the same
+    temporary guard_summary path. Running the guard directly is deterministic
+    and keeps the same public behavior: returncode + stdout.
+    """
     with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, encoding='utf-8') as f:
         json.dump(report_dict, f)
         tmp = f.name
-    # Create a temp guard_summary.json that the guard can read
+
     gs_path = report_dict.get("guard_summary_path", "")
     if gs_path:
         gs_dir = os.path.dirname(gs_path)
@@ -21,27 +28,27 @@ def _run_guard(report_dict):
             os.makedirs(gs_dir, exist_ok=True)
         with open(gs_path, 'w', encoding='utf-8') as gs:
             json.dump({"overall_status": "PASS", "chapter_no": report_dict.get("chapter_no", 1)}, gs)
-    try:
-        result = subprocess.run(
-            [sys.executable, str(GUARD_SCRIPT), tmp],
-            capture_output=True, text=True, timeout=15,
-            env={**os.environ, "PYTHONUNBUFFERED": "1"}
-        )
-    except subprocess.TimeoutExpired:
-        Path(tmp).unlink()
-        if gs_path and os.path.exists(gs_path):
-            os.remove(gs_path)
-        pytest.fail("agent_run_guard subprocess timed out after 15s")
-    except Exception as e:
-        Path(tmp).unlink()
-        if gs_path and os.path.exists(gs_path):
-            os.remove(gs_path)
-        pytest.fail(f"agent_run_guard subprocess failed: {e}")
-    Path(tmp).unlink()
-    if gs_path and os.path.exists(gs_path):
-        os.remove(gs_path)
-    return result.returncode, result.stdout
 
+    old_argv = sys.argv[:]
+    buf = io.StringIO()
+    rc = 0
+    try:
+        sys.argv = [str(GUARD_SCRIPT), tmp]
+        guard_mod = importlib.import_module("agent_run_guard")
+        with contextlib.redirect_stdout(buf):
+            try:
+                guard_mod.main()
+                rc = 0
+            except SystemExit as e:
+                rc = int(e.code or 0)
+    except Exception as e:
+        pytest.fail(f"agent_run_guard failed in-process: {e}")
+    finally:
+        sys.argv = old_argv
+        Path(tmp).unlink(missing_ok=True)
+        if gs_path and os.path.exists(gs_path):
+            os.remove(gs_path)
+    return rc, buf.getvalue()
 
 def _valid_report(**overrides):
     base = {
