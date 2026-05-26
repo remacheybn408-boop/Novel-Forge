@@ -1,0 +1,44 @@
+{
+  "_comment": "格物证道项目配置 - 指向HermesMemoryBase — v0.4.5 updated",
+  "db_path": "D:\\HermesMemoryBase\\database\\hermes_memory.db",
+  "novels_root": "D:\\小说\\格物证道",
+  "exports_root": "D:\\HermesMemoryBase\\exports",
+
+  "voice_system": {
+    "enabled": true,
+    "storage": "sqlite",
+    "use_database_profiles": true,
+    "voice_packs_dir": "./voice_packs",
+    "write_observations_to_database": true,
+    "default_narration_policy": {
+      "dialect_level": 0,
+      "meme_level": 0,
+      "english_level": 0,
+      "wenyan_level": 1
+    },
+    "warning_only": true
+  },
+
+  "word_count": {
+    "normal":       {"min": 1300, "best_min": 1900, "best_max": 2800, "max": 3300},
+    "key":          {"min": 1900, "best_min": 2200, "best_max": 3300, "max": 4200},
+    "climax":       {"min": 1900, "best_min": 2300, "best_max": 3800, "max": 5500},
+    "volume_finale":{"min": 1900, "best_min": 2300, "best_max": 4200, "max": 5500}
+  },
+  "scene_quality": {"min_effective_scenes": 1},
+  "default_novel_slug": "gewuzhengdao",
+  "default_novel_title": "格物证道",
+  "title_policy": {
+    "normalize_filename_only": true,
+    "auto_update_chapter_title": false,
+    "allow_punctuation_in_actual_title": true,
+    "record_title_diff": true
+  },
+  "paths": {
+    "layout": "custom",
+    "novels_root": "D:\\小说",
+    "novel_dir_template": "{novel_title}",
+    "volume_dir_template": "第{volume_no_cn}卷",
+    "chapter_filename_template": "第{chapter_no}章_{safe_title}.txt"
+  }
+}

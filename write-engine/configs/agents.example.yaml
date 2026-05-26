@@ -1,0 +1,107 @@
+# ============================================================
+# Multi-Agent Review Board Configuration Template v0.5.5
+# ============================================================
+# 复制此文件为 agents.yaml 并根据项目需求修改。
+#
+# cp configs/agents.example.yaml configs/agents.yaml
+#
+# Agent只审稿，不自动改正文。只输出报告，不覆盖原文。
+# 每个Agent基于启发式规则(正则+规则)做检测，不调用外部LLM。
+# ============================================================
+
+# ── 全局设置 ──
+enabled: true                  # 是否启用多Agent审稿系统
+default_mode: light            # 默认模式: light (快速) | full (完整)
+output_dir: reports/agent_reviews  # 报告输出目录
+fail_on_error: false           # Agent 异常是否导致整体 FAIL
+
+# ── Agent 配置 ──
+# 每个Agent可以单独 enable/disable 和调整参数。
+# 参数含义详见各Agent类的文档字符串。
+agents:
+
+  # ── 上下文承接Agent ──
+  # 功能: 检查上一章结尾的动作/状态/钩子是否被本章承接
+  # 检查项: 动作延续, 硬状态继承, 钩子承接, 真空续写检测
+  context:
+    enabled: true
+    min_bridge_score: 4         # 最低桥接分数 (满分12). 低于此分触发WARNING
+    tail_lookback: 400          # 分析上一章结尾的字符数
+
+  # ── 角色口吻Agent ──
+  # 功能: 检查角色对话是否符合其设定的口吻/方言/注册
+  # 检查项: 旁白AI腔, 网络梗污染, 英语/罗马字, 声纹缺失, 方言浓度
+  voice:
+    enabled: true
+    max_narration_ai: 2         # 旁白中出现AI腔的最大容忍次数
+    max_memes: 1                # 网络梗最大容忍数
+    max_english: 2              # 英文词最大容忍数 (修仙文标准)
+
+  # ── 反AI腔Agent ──
+  # 功能: 检测AI生成文本的典型特征
+  # 检查项: "不是A而是B"句式, AI套话, 硬科普, 水文/凑字段落, 总结腔
+  anti_ai:
+    enabled: true
+    max_not_a_b: 3              # "不是A而是B"句式最大容忍数
+    max_cliches: 1              # AI套话最大容忍数 (一刻/明白/从未想过...)
+    min_paragraph_info: 30      # 段落最小信息密度(中文字符数)
+
+  # ── 剧情推进Agent ──
+  # 功能: 评估剧情是否有实质推进
+  # 检查项: 推进标记, 冲突强度, 爽点密度, 结尾压力, 中段空转
+  plot:
+    enabled: true
+    min_progress: 2             # 最少推进标记数 (突破/发现/收获/击败)
+    min_conflicts: 1            # 最少冲突标记数
+    min_pleasure: 1             # 最少爽点标记数 (打脸/反转/震惊)
+    tail_chars: 600             # 结尾分析字数
+
+  # ── 连续性Agent ──
+  # 功能: 检查跨章节的人物/物品/地点/任务连续性
+  # 检查项: 人物硬状态, 关键物品, 地点跳跃, 任务线, 时间一致性
+  continuity:
+    enabled: true
+    strict_items: true          # 严格跟踪关键物品 (止血丸/令牌/玉简等)
+    strict_states: true         # 严格跟踪人物状态 (伤势/灵力/被困)
+
+  # ── 读者追读力Agent ──
+  # 功能: 评估章节对读者的持续吸引力
+  # 检查项: 钩子密度, 微兑现, 新问题, 结尾驱动力, 开篇抓人
+  reader_pull:
+    enabled: true
+    min_hooks: 3                # 每章最少钩子/悬念数
+    min_payoffs: 0              # 每章最少微兑现数 (不强求)
+    tail_chars: 500             # 结尾分析字数
+
+  # ── 设定自洽Agent ──
+  # 功能: 检查修仙世界观设定是否前后一致
+  # 检查项: 物理类比滥用, 境界矛盾, 规则摇摆, 物品别名混用, 双货币系统
+  setting:
+    enabled: true
+    strict_physics: true         # 严格检查现代物理/科学类比
+    strict_realm: true           # 严格检查境界体系矛盾
+    allow_cross_realm: false     # 是否允许低境界击败高境界 (若允许需解释)
+
+  # ── 主编汇总 ──
+  # 功能: 汇总所有Agent输出, 去重, 排序, 分类
+  # 输出: must_fix / should_fix / keep 三级分类
+  chief_editor:
+    enabled: true
+    dedup_threshold: 0.6         # 相似finding去重阈值 (0-1, 越高越严格)
+    must_fix_threshold: 70       # 整体评分超过此值标记为"必须修改"
+
+# ── 调度设置 ──
+orchestration:
+  strategy: sequential          # 执行策略: sequential (顺序) | parallel (并行,未来)
+  timeout_per_agent: 30         # 单个Agent超时时间(秒), 0=不限制
+  fail_fast: false              # 遇FAIL是否立即停止后续Agent
+  report_format: json           # 报告格式: json | jsonl
+
+# ── 模式定义 ──
+modes:
+  light:
+    agents: [context, voice, anti_ai, plot]
+    description: "快速审稿模式 — 5个Agent (含主编汇总)。适合日常快速检查。"
+  full:
+    agents: [context, voice, anti_ai, plot, continuity, reader_pull, setting]
+    description: "完整审稿模式 — 8个Agent (含主编汇总)。适合发布前全面检查。"

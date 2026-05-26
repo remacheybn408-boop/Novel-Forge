@@ -1,0 +1,144 @@
+# ============================================================
+# novel-pipeline-write-engine v0.5.0 — Example Configuration
+# ============================================================
+# Copy this file to config.yaml and adjust values for your setup.
+#
+# Usage:
+#   cp config.example.yaml config.yaml
+#   # Edit config.yaml with your paths and settings
+#
+# Note: config.json (legacy format) is still supported.
+#       This YAML format is the v0.5.0 target format.
+
+# === Project Identity ===
+project:
+  name: my-novel-project
+  novel_slug: my_novel
+  novel_title: 我的小说
+  version: "0.5.0"
+
+# === Path Configuration ===
+paths:
+  # Database path (SQLite)
+  db_path: ./data/novel_memory.db
+
+  # Novel output directories
+  novels_root: ./novels
+  exports_root: ./exports
+
+  # Directory layout
+  layout: custom                # custom | flat
+  novel_dir_template: "{novel_title}"
+  volume_dir_template: "第{volume_no_cn}卷"
+  chapter_filename_template: "第{chapter_no}章_{safe_title}.txt"
+
+  # Template / assets directories
+  templates_dir: ./templates
+  voice_packs_dir: ./voice_packs
+
+# === Feature Toggles ===
+features:
+  voice_system:
+    enabled: true
+    storage: sqlite            # sqlite | file
+    use_database_profiles: true
+    write_observations_to_database: true
+    warning_only: true          # true = warnings only, false = block on violations
+
+  meme_system:
+    enabled: true
+    default_meme_level: light   # none | light | medium
+    auto_load_templates: true
+
+  revision_loop:
+    enabled: true
+    max_iterations: 3
+    auto_apply: false           # false = suggest only, true = auto-apply fixes
+
+  guard_calibration:
+    enabled: true
+    shadow_mode: false          # true = new guards run silently
+
+# === Guard Configuration ===
+guards:
+  # Word count per chapter type
+  word_count:
+    normal:       { min: 1300, best_min: 1900, best_max: 2800, max: 3300 }
+    key:          { min: 1900, best_min: 2200, best_max: 3300, max: 4200 }
+    climax:       { min: 1900, best_min: 2300, best_max: 3800, max: 5500 }
+    volume_finale: { min: 1900, best_min: 2300, best_max: 4200, max: 5500 }
+
+  # Scene quality thresholds
+  scene_quality:
+    min_effective_scenes: 1
+
+  # Title handling policy
+  title_policy:
+    normalize_filename_only: true
+    auto_update_chapter_title: false
+    allow_punctuation_in_actual_title: true
+    record_title_diff: true
+
+  # Guard severity overrides (per guard)
+  severity_overrides: {}
+  # Example:
+  #   anti_ai_patterns: high
+  #   scene_delta: medium
+
+# === Voice Pack Configuration ===
+voice_pack:
+  # Default narration policy (applied when no character-specific policy exists)
+  default_narration_policy:
+    dialect_level: 0    # 0-3
+    meme_level: 0       # 0-3
+    english_level: 0    # 0-2
+    wenyan_level: 1     # 0-3
+
+  # Voice pack search paths (loaded in order)
+  search_paths:
+    - templates/voice_pack/
+    - voice_packs/base/
+
+  # Default voice pack to use when no binding found
+  default_pack_id: default_character
+
+  # Path to character binding files
+  bindings_path: voice_packs/bindings/
+
+# === Meme Pack Configuration ===
+meme_pack:
+  # Global forbidden memes (applied regardless of character settings)
+  global_forbidden:
+    - forbidden_memes
+
+  # Meme pack search paths (loaded in order)
+  search_paths:
+    - templates/meme_pack/
+    - voice_packs/memes/
+
+  # Default meme pack parameters
+  default_frequency:
+    max_per_chapter: 3
+    max_per_1000_chars: 1
+    overuse_warning_threshold: 3
+
+# === Report Configuration ===
+report:
+  # Output formats
+  formats:
+    - json      # guard_summary.json
+    - markdown  # guard_report.md
+
+  # Report detail level
+  detail: full        # summary | full
+
+  # Where to write reports
+  output_dir: ./reports
+
+  # Include sections
+  sections:
+    - summary
+    - guard_results
+    - voice_compliance
+    - meme_usage
+    - revision_suggestions

@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.5.6 - Clean CLI Release (2026-05-26)
+
+### Fixed
+- chapter_pipeline.py: chapter dir path now includes novel slug (novels/<slug>/第01卷)
+- agents review: path resolution now includes novel slug
+- Report directory: unified from reports/ to exports/reports/
+- Demo: now runs post (ingest to DB) after creating chapter
+- test_agent_run_guard.py: hardened subprocess handling to prevent hangs
+- tmp/ removed from git tracking
+
+### Changed
+- README updated to v0.5.6 (title, test count 296, version lines)
+- novel.py header updated to v0.5.6
+- cmd_init creates exports/reports instead of reports/
+
 ## v0.5.5 - Stable & Easy Mode (2026-05-25)
 
 ### Added

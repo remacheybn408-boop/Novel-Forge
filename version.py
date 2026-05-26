@@ -3,7 +3,7 @@
 from pathlib import Path
 
 _VFILE = Path(__file__).resolve().parent / "VERSION"
-_FALLBACK = "v0.5.5"
+_FALLBACK = "v0.5.6"
 
 
 def get_version() -> str:

@@ -1,0 +1,173 @@
+{
+  "_comment": "Novel Pipeline - Write Engine 配置文件",
+  "_instructions": "复制此文件为 config.json 并修改路径",
+
+  "db_path": "./data/novel_memory.db",
+  "novels_root": "./novels",
+  "exports_root": "./exports",
+
+  "voice_system": {
+    "_comment": "多语体声纹系统 v0.4.5 — 方言/梗/英语/语体分包检测",
+    "enabled": true,
+    "storage": "sqlite",
+    "use_database_profiles": true,
+    "db_path": "./data/novel_memory.db",
+    "voice_packs_dir": "./voice_packs",
+    "character_voice_profiles_dir": "./voice_profiles",
+    "version": "v0.4.5",
+    "write_observations_to_database": true,
+    "default_narration_policy": {
+      "dialect_level": 0,
+      "meme_level": 0,
+      "english_level": 0,
+      "wenyan_level": 1
+    },
+    "warning_only": true,
+    "require_voice_profiles": false
+  },
+
+  "word_count": {
+    "_rule": "chapter_type只决定允许上限，不决定必须写长。高潮不代表字多。",
+    "normal":       {"min": 1900, "best_min": 1900, "best_max": 2800, "max": 3300},
+    "relationship": {"min": 1900, "best_min": 1900, "best_max": 2800, "max": 3300},
+    "investigation":{"min": 1900, "best_min": 1900, "best_max": 2800, "max": 3300},
+    "experiment":   {"min": 1900, "best_min": 2200, "best_max": 3200, "max": 4200},
+    "conflict":     {"min": 1900, "best_min": 2200, "best_max": 3300, "max": 4200},
+    "key":          {"min": 1900, "best_min": 2200, "best_max": 3300, "max": 4200},
+    "climax":       {"min": 1900, "best_min": 2300, "best_max": 3800, "max": 5500},
+    "volume_finale":{"min": 1900, "best_min": 2300, "best_max": 4200, "max": 5500},
+    "authorized_short":{"min": 300, "best_min": 500, "best_max": 900, "max": 1000},
+    "fragment":     {"min": 300, "best_min": 500, "best_max": 900, "max": 1000}
+  },
+
+  "scene_quality": {
+    "min_effective_scenes": 4
+  },
+
+  "default_novel_slug": "demo_novel",
+  "default_novel_title": "示例小说",
+
+  "qgp": {
+    "_comment": "QGP (Quality Guard Perplexity) — 困惑度质量门禁. WARNING only, 不硬拦入库.",
+    "enabled": true,
+    "mode": "warning_only",
+    "backend": "ngram",
+    "baseline_enabled": false,
+    "baseline_path": "data/qgp_baselines/{novel_slug}.qgp_baseline.json",
+    "paragraph_min_chars": 40,
+    "low_surprise_z_threshold": -1.2,
+    "high_surprise_z_threshold": 1.8,
+    "template_risk_threshold": 0.35,
+    "rhythm_flatness_threshold": 0.72,
+    "dialogue_variation_min": 0.18,
+    "max_warning_paragraphs": 8,
+    "transformers": {
+      "enabled": false,
+      "model_path": "",
+      "device": "cpu",
+      "stride": 256,
+      "max_length": 512
+    }
+  },
+
+  "human_grade_revision": {
+    "_comment": "Human-Grade Revision Suite (v0.4.0) — 拟人审稿质量套件. 除合规自查外均为 WARNING only.",
+    "enabled": true,
+    "version": "v0.4.0",
+    "mode": "warning_first",
+    "quality_guards_warning_only": true,
+    "compliance_guard_can_block": true,
+    "editor_revision_guard": {
+      "enabled": true,
+      "max_over_explained_ratio": 0.28,
+      "min_revision_texture_score": 0.45
+    },
+    "concrete_anchor_guard": {
+      "enabled": true,
+      "window_chars": 500,
+      "min_anchor_density": 0.22,
+      "require_object_anchor": true,
+      "require_body_action_anchor": true,
+      "require_scene_anchor": true
+    },
+    "scene_causality_guard": {
+      "enabled": true,
+      "require_cause": true,
+      "require_action": true,
+      "require_resistance": true,
+      "require_cost": true,
+      "require_result": true,
+      "require_hook": false
+    },
+    "dialogue_naturalness_guard": {
+      "enabled": true,
+      "min_dialogue_variation_score": 0.18,
+      "prefer_interruption": true,
+      "prefer_unfinished_sentence": true,
+      "prefer_action_beats": true
+    },
+    "style_variation_guard": {
+      "enabled": true,
+      "max_repeated_opening_ratio": 0.25,
+      "max_overused_abstract_words": 12,
+      "min_sentence_length_variance": 0.35
+    },
+    "compliance_selfcheck_guard": {
+      "enabled": true,
+      "block_high_risk": true,
+      "warn_medium_risk": true
+    },
+    "final_submission_report": {
+      "enabled": true,
+      "top_revision_tasks": 5
+    }
+  },
+
+  "quality_policy": {
+    "_comment": "Guard Orchestrator 门禁调度策略 v0.4.0",
+    "version": "v0.4.0",
+    "run_mode": "standard",
+    "max_final_revision_tasks": 5,
+    "min_warning_confidence": 0.55,
+    "min_top_task_confidence": 0.70,
+    "require_two_evidence_for_warning": true,
+    "quality_guards_warning_only": true,
+    "compliance_guard_can_block": true,
+    "deduplicate_warnings": true,
+    "skip_heavy_guards_for_short_chapters": true,
+    "short_chapter_threshold_chars": 1000,
+    "baseline_required_for_strong_warning": true
+  },
+
+  "style_allowlist": {
+    "_comment": "方言/文言/角色口癖保护白名单，防止被 QGP/style_variation 误报",
+    "dialect_enabled": true,
+    "classical_chinese_enabled": true,
+    "character_catchphrase_enabled": true,
+    "allowed_dialect_terms": [],
+    "allowed_classical_terms": [],
+    "character_voice_profiles": {}
+  },
+
+  "revision_loop": {
+    "_comment": "Revision Loop — 自动改稿闭环 v0.4.0. 默认不覆盖原文, 不自动入库.",
+    "enabled": true,
+    "version": "v0.4.0",
+    "default_mode": "controlled",
+    "max_rounds": 2,
+    "auto_overwrite_source": false,
+    "auto_ingest_revised": false,
+    "require_user_approval": true,
+    "only_fix_top_tasks": true,
+    "max_tasks_per_round": 5,
+    "min_task_confidence": 0.70,
+    "preserve_chapter_ending": true,
+    "preserve_character_voice": true,
+    "preserve_dialect_and_classical_style": true,
+    "preserve_foreshadowing": true,
+    "max_changed_paragraph_ratio": 0.35,
+    "allow_aggressive_mode": false,
+    "rerun_guards_after_revision": true,
+    "stop_if_quality_worse": true
+  }
+}

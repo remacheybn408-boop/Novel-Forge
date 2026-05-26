@@ -17,10 +17,10 @@ Checks:
 Output: clean terminal text with [OK] [WARN] [MISS] markers. Exit code 0.
 """
 
+import sys
 from version import get_version
 import json
 import os
-import json
 import sqlite3
 import re
 from pathlib import Path
