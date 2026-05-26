@@ -1,0 +1,92 @@
+{
+  "version": "v0.6.5",
+  "entry_phrases": ["菜单", "帮助", "怎么用", "开始", "我想写小说", "下一步"],
+  "sections": [
+    {
+      "id": "start",
+      "title": "新手开始",
+      "description": "适合第一次使用、初始化、检查环境、跑演示。",
+      "items": [
+        {"label": "初始化项目", "user_says": ["初始化", "第一次使用"], "command": "python novel.py init", "danger": "safe", "description": "创建配置、目录和基础数据库。"},
+        {"label": "检查项目状态", "user_says": ["状态", "检查"], "command": "python novel.py status", "danger": "safe", "description": "诊断环境是否就绪。"},
+        {"label": "运行演示", "user_says": ["演示", "demo"], "command": "python novel.py demo", "danger": "safe", "description": "一键跑通完整流程。"},
+        {"label": "项目看板", "user_says": ["看板", "总览"], "command": "python novel.py board", "danger": "safe", "description": "只读查看项目概况。"}
+      ]
+    },
+    {
+      "id": "archive",
+      "title": "小说档案库",
+      "description": "查看当前有几本小说、切换小说、新增小说、删除或恢复数据库。",
+      "items": [
+        {"label": "列出所有数据库", "user_says": ["有哪些小说", "数据库列表"], "command": "python novel.py db list", "danger": "safe"},
+        {"label": "查看当前数据库", "user_says": ["当前小说"], "command": "python novel.py db current", "danger": "safe"},
+        {"label": "新增数据库", "user_says": ["新建小说", "新数据库"], "command": "python novel.py db new --name 新小说", "danger": "safe"},
+        {"label": "切换数据库", "user_says": ["切换小说"], "command": "python novel.py db use slot_002", "danger": "safe"},
+        {"label": "备份数据库", "user_says": ["备份"], "command": "python novel.py db backup", "danger": "safe"},
+        {"label": "删除数据库", "user_says": ["删除小说", "删库"], "command": "python novel.py db delete", "danger": "dangerous", "description": "删除前自动备份，需输入YES确认。"},
+        {"label": "恢复数据库", "user_says": ["恢复小说"], "command": "python novel.py db restore", "danger": "safe"}
+      ]
+    },
+    {
+      "id": "outline",
+      "title": "大纲管理",
+      "description": "添加大纲、识别是不是同一本小说的新版本、切换大纲、对比大纲、回滚大纲。",
+      "items": [
+        {"label": "添加大纲", "user_says": ["添加大纲", "导入大纲"], "command": "python novel.py outline add", "danger": "safe", "description": "自动检测是否为新小说或旧小说升级版。"},
+        {"label": "查看大纲列表", "user_says": ["大纲列表", "有哪些大纲"], "command": "python novel.py outline list", "danger": "safe"},
+        {"label": "查看当前大纲", "user_says": ["当前大纲"], "command": "python novel.py outline current", "danger": "safe"},
+        {"label": "切换大纲", "user_says": ["切换大纲"], "command": "python novel.py outline switch", "danger": "safe", "description": "不会删除旧大纲。"},
+        {"label": "对比大纲", "user_says": ["对比大纲"], "command": "python novel.py outline diff", "danger": "safe"},
+        {"label": "回滚大纲", "user_says": ["回滚大纲"], "command": "python novel.py outline rollback", "danger": "dangerous", "description": "恢复旧版本，需确认。"}
+      ]
+    },
+    {
+      "id": "writing",
+      "title": "开始写作",
+      "description": "生成任务卡、写第N章、写后检测、入库。",
+      "items": [
+        {"label": "生成写前任务卡", "user_says": ["任务卡", "写前"], "command": "python novel.py pre 1", "danger": "safe", "description": "从大纲和上一章生成本章写作指引。"},
+        {"label": "写后门禁检查", "user_says": ["检查章节", "写后检测"], "command": "python novel.py post 1", "danger": "safe", "description": "运行21个门禁检查并入库。"},
+        {"label": "统计字数", "user_says": ["字数", "多少字"], "command": "python novel.py wc 1", "danger": "safe"}
+      ]
+    },
+    {
+      "id": "jury",
+      "title": "Agent 陪审团",
+      "description": "轻量审稿、完整审稿、AI味检测、追读力检测、角色口吻检测。",
+      "items": [
+        {"label": "轻量审稿", "user_says": ["轻量审稿"], "command": "python novel.py agents review 1 --mode light", "danger": "safe"},
+        {"label": "完整审稿", "user_says": ["完整审稿", "深度审稿"], "command": "python novel.py agents review 1 --mode full", "danger": "safe"}
+      ]
+    },
+    {
+      "id": "report",
+      "title": "报告与导出",
+      "description": "查看最新报告、导出TXT/MD。",
+      "items": [
+        {"label": "查看报告", "user_says": ["报告", "查看结果"], "command": "python novel.py report", "danger": "safe"},
+        {"label": "导出TXT", "user_says": ["导出txt"], "command": "python novel.py export --format txt", "danger": "safe"},
+        {"label": "导出MD", "user_says": ["导出md"], "command": "python novel.py export --format md", "danger": "safe"}
+      ]
+    },
+    {
+      "id": "memory",
+      "title": "项目记忆",
+      "description": "查询伏笔、人物状态、世界观、上一章结尾。",
+      "items": [
+        {"label": "查询项目记忆", "user_says": ["查询", "搜索"], "command": "python novel.py query", "danger": "safe"},
+        {"label": "写作规则", "user_says": ["规则", "偏好"], "command": "python novel.py learn list", "danger": "safe"}
+      ]
+    },
+    {
+      "id": "faq",
+      "title": "常见问题",
+      "description": "没有大纲不能开写、数据库满了怎么办、切换大纲会不会覆盖旧内容。",
+      "items": [
+        {"label": "为什么不能开写", "user_says": ["不能写", "没大纲"], "answer": "必须先添加大纲才能写作。使用 outline add 添加大纲。"},
+        {"label": "新大纲会覆盖旧内容吗", "user_says": ["覆盖", "会不会丢"], "answer": "不会。新大纲作为新版本添加，旧大纲保留。切换大纲不会删除旧数据。"},
+        {"label": "怎么恢复删除的数据库", "user_says": ["恢复", "删错了"], "answer": "使用 db restore 恢复。删除前系统会自动备份。"}
+      ]
+    }
+  ]
+}
