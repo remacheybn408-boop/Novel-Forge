@@ -49,3 +49,5 @@ outputs/
 reports/
 examples/novels/
 .story/
+workspace/
+.story/
