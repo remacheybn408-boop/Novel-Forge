@@ -511,11 +511,11 @@ def cmd_pre(chapter_no: str = None, slug: str = None, volume_no: str = None):
         return 1
 
 
-def cmd_post(chapter_no: str = None, slug: str = None, volume_no: str = None, file_path: str = None):
-    """Post-write: run guards and ingest chapter."""
+def cmd_post(chapter_no: str = None, slug: str = None, volume_no: str = None, file_path: str = None, story: bool = False):
+    """Post-write: run guards and ingest."""
     cfg = PROJECT_ROOT / "config.json"
     if not chapter_no and not file_path:
-        print("Usage: python novel.py post <chapter_no> [--file <path>] [--slug <slug>]")
+        print("Usage: python novel.py post <chapter_no> [--file <path>] [--slug <slug>] [--story]")
         return 1
     if file_path:
         print(f"  Running post-write guards for file: {file_path}")
@@ -535,10 +535,76 @@ def cmd_post(chapter_no: str = None, slug: str = None, volume_no: str = None, fi
             # Always pass chapters-dir using project-relative path
             cmd.extend(["--chapters-dir", str(PROJECT_ROOT / "novels" / slug / "第01卷")])
         result = subprocess.run(cmd, cwd=str(PROJECT_ROOT), timeout=300)
+        if result.returncode != 0:
+            return result.returncode
+
+        # Auto-generate story commit if --story flag is set and .story/ exists
+        if story and _story_exists():
+            print()
+            print("  [story] 自动生成提交记录...")
+            try:
+                from scripts.story import commit_builder
+                ch_no = int(chapter_no) if chapter_no else 1
+
+                # Try to read word count from the chapter file
+                wc = 0
+                if file_path:
+                    from pathlib import Path
+                    ch_fp = Path(file_path)
+                else:
+                    novels_root = _get_novels_root(cfg)
+                    ch_dir = Path(novels_root) / slug / "第01卷"
+                    candidates = list(ch_dir.glob(f"第{ch_no}章*.txt"))
+                    ch_fp = candidates[0] if candidates else None
+
+                if ch_fp and ch_fp.exists():
+                    text = ch_fp.read_text(encoding="utf-8")
+                    wc = sum(1 for c in text if '\u4e00' <= c <= '\u9fff' or '\u3400' <= c <= '\u4dbf')
+
+                # Try reading guard report for summary
+                guard_summary = {}
+                try:
+                    import json as _json
+                    cfg_data = _json.loads(cfg.read_text(encoding="utf-8"))
+                    exports_root = cfg_data.get("exports_root", str(PROJECT_ROOT / "exports"))
+                    reports_dir = Path(exports_root) / "reports"
+                    if reports_dir.exists():
+                        reports = sorted(reports_dir.rglob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+                        if reports:
+                            rpt = _json.loads(reports[0].read_text(encoding="utf-8"))
+                            guard_summary = {
+                                "status": rpt.get("status", rpt.get("overall_status", "?")),
+                                "issues": len(rpt.get("issues", [])),
+                            }
+                except Exception:
+                    pass
+
+                commit = commit_builder.build_commit(
+                    PROJECT_ROOT, ch_no,
+                    chapter_title=f"第{ch_no}章",
+                    word_count=wc,
+                    guard_summary=guard_summary,
+                )
+                saved = commit_builder.save_commit(PROJECT_ROOT, ch_no, commit)
+                print(f"  [story] 第{ch_no}章提交记录已保存: {Path(saved).name}")
+            except Exception as e:
+                print(f"  [story] 提交生成失败: {e}")
+
         return result.returncode
     except Exception as e:
         print(f"  [ERROR] {e}")
         return 1
+
+
+def _get_novels_root(cfg_path):
+    """Read novels_root from config."""
+    try:
+        import json as _json
+        with open(cfg_path, encoding="utf-8") as f:
+            c = _json.load(f)
+        return c.get("novels_root", str(PROJECT_ROOT / "novels"))
+    except Exception:
+        return str(PROJECT_ROOT / "novels")
 
 
 def cmd_review(chapter_no: str = None, slug: str = None, volume_no: str = None):
@@ -667,6 +733,340 @@ def cmd_rag(args):
         return 1
 
 
+# ============================================================
+#  Story Contract system commands
+# ============================================================
+
+def _story_exists() -> bool:
+    """Check if .story/ directory is initialized."""
+    return (PROJECT_ROOT / ".story").exists()
+
+
+def _story_missing_msg() -> str:
+    return "请先运行 python novel.py story init"
+
+
+def cmd_story(args):
+    """Story contract system: init, contract, commit, health."""
+    from scripts.story import story_init, contract_builder, commit_builder, story_health
+
+    action = getattr(args, "story_action", None)
+
+    if action == "init":
+        if _story_exists():
+            print("  .story/ 目录已存在。如需重建请先删除。")
+            return 0
+        result = story_init.init_story(PROJECT_ROOT)
+        print(f"  [OK] .story/ 已初始化")
+        for item in result.get("created", []):
+            print(f"    + {item}")
+        print(f"\n  目录: {result['story_dir']}")
+        return 0
+
+    elif action == "contract":
+        if not _story_exists():
+            print(f"  {_story_missing_msg()}")
+            return 1
+        chapter_no = int(getattr(args, "chapter_no", "1") or "1")
+        # Try loading previous commit for context
+        prev_commit = None
+        if chapter_no > 1:
+            prev_commit_path = PROJECT_ROOT / ".story" / "commits" / f"chapter_{chapter_no-1:03d}_commit.json"
+            if prev_commit_path.exists():
+                import json as _json
+                prev_commit = _json.loads(prev_commit_path.read_text(encoding="utf-8"))
+
+        contract = contract_builder.build_contract(PROJECT_ROOT, chapter_no, prev_commit=prev_commit)
+        saved = contract_builder.save_contract(PROJECT_ROOT, chapter_no, contract)
+        print(f"  [OK] 第{chapter_no}章合同已生成")
+        print(f"  保存至: {saved}")
+        print(f"  开放伏笔: {len(contract.get('open_promises_to_keep', []))} 个")
+        print(f"  活跃角色: {len(contract.get('active_characters', []))} 个")
+        return 0
+
+    elif action == "commit":
+        if not _story_exists():
+            print(f"  {_story_missing_msg()}")
+            return 1
+        chapter_no = int(getattr(args, "chapter_no", "1") or "1")
+        commit = commit_builder.build_commit(
+            PROJECT_ROOT, chapter_no,
+            chapter_title=f"第{chapter_no}章",
+            word_count=0,
+            guard_summary={"note": "手动生成"},
+        )
+        saved = commit_builder.save_commit(PROJECT_ROOT, chapter_no, commit)
+        print(f"  [OK] 第{chapter_no}章提交记录已生成")
+        print(f"  保存至: {saved}")
+        return 0
+
+    elif action == "health":
+        if not _story_exists():
+            print(f"  {_story_missing_msg()}")
+            return 1
+        report = story_health.check_health(PROJECT_ROOT)
+        print("=" * 60)
+        print("  故事链健康检查")
+        print("=" * 60)
+        status = "OK" if report["ok"] else "ISSUES"
+        print(f"  状态: {status}")
+        print(f"  合同数: {report.get('contract_count', 0)}")
+        print(f"  提交数: {report.get('commit_count', 0)}")
+        print(f"  事件数: {report.get('event_count', 0)}")
+        issues = report.get("issues", [])
+        if issues:
+            print(f"\n  问题 ({len(issues)}):")
+            for iss in issues:
+                print(f"    - {iss}")
+        else:
+            print("\n  未发现问题。")
+        print()
+        return 0 if report["ok"] else 1
+
+    else:
+        print("Usage: python novel.py story {init|contract|commit|health}")
+        return 1
+
+
+def cmd_query(args):
+    """Query project memory for matching content."""
+    if not _story_exists():
+        print(f"  {_story_missing_msg()}")
+        return 1
+
+    question = " ".join(getattr(args, "question", []) or [])
+    if not question.strip():
+        print("Usage: python novel.py query <question>")
+        print("Example: python novel.py query 主角的名字是什么")
+        return 1
+
+    print(f"  查询: {question}")
+    print()
+
+    story = PROJECT_ROOT / ".story"
+
+    # Search memory JSON files
+    memory = story / "memory"
+    hits = 0
+
+    for fname, label in [("characters.json", "角色"), ("promises.json", "伏笔"),
+                          ("world_facts.json", "世界观"), ("learned_rules.json", "规则")]:
+        fp = memory / fname
+        if not fp.exists():
+            continue
+        try:
+            import json as _json
+            data = _json.loads(fp.read_text(encoding="utf-8"))
+            if isinstance(data, list):
+                for item in data:
+                    text = str(item)
+                    if question.lower() in text.lower() or any(kw in text for kw in question.split()):
+                        hits += 1
+                        preview = text[:120].replace("\n", " ")
+                        print(f"  [{label}] {preview}...")
+        except Exception:
+            pass
+
+    # Search event ledger
+    ledger = story / "events" / "event_ledger.jsonl"
+    if ledger.exists():
+        try:
+            for line in ledger.read_text(encoding="utf-8").strip().split("\n"):
+                if not line.strip():
+                    continue
+                if question.lower() in line.lower() or any(kw in line for kw in question.split()):
+                    hits += 1
+                    import json as _json
+                    evt = _json.loads(line)
+                    preview = str(evt.get("event", line))[:120]
+                    print(f"  [事件 ch{evt.get('chapter', '?')}] {preview}...")
+        except Exception:
+            pass
+
+    # Search contracts
+    chapters_dir = story / "chapters"
+    if chapters_dir.exists():
+        for cf in sorted(chapters_dir.glob("chapter_*_contract.json")):
+            try:
+                import json as _json
+                text = cf.read_text(encoding="utf-8")
+                if question.lower() in text.lower() or any(kw in text for kw in question.split()):
+                    hits += 1
+                    data = _json.loads(text)
+                    print(f"  [合同 ch{data.get('chapter_no', '?')}] {data.get('chapter_title', '')}")
+            except Exception:
+                pass
+
+    if hits == 0:
+        print("  未找到匹配的记忆。")
+    else:
+        print(f"\n  共 {hits} 条匹配。")
+    return 0
+
+
+def cmd_learn(args):
+    """Add/list/remove learned writing rules."""
+    if not _story_exists():
+        print(f"  {_story_missing_msg()}")
+        return 1
+
+    import json as _json
+
+    rules_file = PROJECT_ROOT / ".story" / "memory" / "learned_rules.json"
+    rules = []
+    if rules_file.exists():
+        try:
+            rules = _json.loads(rules_file.read_text(encoding="utf-8"))
+        except Exception:
+            rules = []
+
+    action = getattr(args, "action", "list")
+    rule_text = " ".join(getattr(args, "rule", []) or [])
+
+    if action == "list":
+        if not rules:
+            print("  暂无已学规则。用 python novel.py learn add <规则> 添加。")
+            return 0
+        print(f"  已学规则 ({len(rules)}):")
+        for i, r in enumerate(rules):
+            rule_str = r.get("rule", str(r))
+            ch = r.get("chapter", "?")
+            print(f"    [{i+1}] (ch{ch}) {rule_str}")
+        return 0
+
+    elif action == "add":
+        if not rule_text.strip():
+            print("Usage: python novel.py learn add <规则内容>")
+            print("Example: python novel.py learn add 主角李明的口头禅是'走着瞧'")
+            return 1
+        from datetime import datetime
+        rules.append({
+            "rule": rule_text,
+            "chapter": "manual",
+            "added_at": datetime.now().isoformat(),
+        })
+        rules_file.write_text(_json.dumps(rules, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"  [OK] 规则已添加: {rule_text}")
+        return 0
+
+    elif action == "remove":
+        if not rule_text.strip():
+            print("Usage: python novel.py learn remove <number>")
+            return 1
+        try:
+            idx = int(rule_text) - 1
+            if 0 <= idx < len(rules):
+                removed = rules.pop(idx)
+                rules_file.write_text(_json.dumps(rules, ensure_ascii=False, indent=2), encoding="utf-8")
+                print(f"  [OK] 规则已移除: {removed.get('rule', str(removed))}")
+                return 0
+            else:
+                print(f"  无效编号: {idx+1} (共 {len(rules)} 条)")
+                return 1
+        except ValueError:
+            print(f"  请输入有效编号。当前共 {len(rules)} 条规则。")
+            return 1
+
+    return 0
+
+
+def cmd_board(args):
+    """Print a readonly status board for the project."""
+    print("=" * 60)
+    print("  Novel Pipeline — 项目看板")
+    print("=" * 60)
+    print()
+
+    # Version
+    v = get_version()
+    print(f"  引擎版本: {v}")
+
+    # Story status
+    if _story_exists():
+        from scripts.story import story_health
+        health = story_health.check_health(PROJECT_ROOT)
+        status = "OK" if health["ok"] else "ISSUES"
+        print(f"  故事链: {status}")
+        print(f"    合同: {health.get('contract_count', 0)}  提交: {health.get('commit_count', 0)}  事件: {health.get('event_count', 0)}")
+        issues = health.get("issues", [])
+        if issues:
+            for iss in issues[:3]:
+                print(f"    ⚠ {iss}")
+    else:
+        print(f"  故事链: 未初始化 (python novel.py story init)")
+
+    # Config
+    cfg = PROJECT_ROOT / "config.json"
+    if cfg.exists():
+        import json as _json
+        try:
+            cfg_data = _json.loads(cfg.read_text(encoding="utf-8"))
+            slug = cfg_data.get("default_novel_slug", "?")
+            genre = cfg_data.get("default_genre", "?")
+            style = cfg_data.get("default_style", "?")
+            print(f"  当前项目: {slug}")
+            print(f"  类型/风格: {genre} / {style}")
+
+            # Word count config
+            wc = cfg_data.get("word_count", {}).get("normal", {})
+            if wc:
+                print(f"  字数范围: {wc.get('min', '?')}-{wc.get('max', '?')} (最佳≥{wc.get('best_min', '?')})")
+        except Exception:
+            print(f"  配置: 读取失败")
+    else:
+        print(f"  配置: 未找到 config.json")
+
+    # Chapters in novels dir
+    if cfg.exists():
+        import json as _json
+        try:
+            cfg_data = _json.loads(cfg.read_text(encoding="utf-8"))
+            slug = cfg_data.get("default_novel_slug", "demo_novel")
+            novels_root = cfg_data.get("novels_root", str(PROJECT_ROOT / "novels"))
+            ch_dir = Path(novels_root) / slug / "第01卷"
+            if ch_dir.exists():
+                chapters = sorted(ch_dir.glob("第*章*.txt"))
+                print(f"  已完成章节: {len(chapters)}")
+                if chapters:
+                    latest = chapters[-1]
+                    cn = sum(1 for c in latest.read_text(encoding="utf-8")
+                             if '\u4e00' <= c <= '\u9fff' or '\u3400' <= c <= '\u4dbf')
+                    print(f"    最新: {latest.name} ({cn} 汉字)")
+            else:
+                print(f"  章节目录: 未找到 {ch_dir}")
+        except Exception:
+            print(f"  章节: 读取失败")
+
+    # DB status
+    try:
+        db_cfg = PROJECT_ROOT / "config.json"
+        if db_cfg.exists():
+            cfg_data = _json.loads(db_cfg.read_text(encoding="utf-8"))
+            db_path = cfg_data.get("db_path", str(PROJECT_ROOT / "data" / "novel_memory.db"))
+        else:
+            db_path = str(PROJECT_ROOT / "data" / "novel_memory.db")
+        dbp = Path(db_path)
+        if not dbp.is_absolute():
+            dbp = PROJECT_ROOT / dbp
+        if dbp.exists():
+            import sqlite3
+            conn = sqlite3.connect(str(dbp))
+            cur = conn.execute("SELECT COUNT(*) FROM chapters")
+            ch_count = cur.fetchone()[0]
+            cur = conn.execute("SELECT COUNT(*) FROM characters")
+            char_count = cur.fetchone()[0]
+            conn.close()
+            print(f"  数据库: {dbp.name} | 章节: {ch_count} | 角色: {char_count}")
+        else:
+            print(f"  数据库: 未找到 ({dbp})")
+    except Exception:
+        print(f"  数据库: 无法读取")
+
+    print()
+    print("=" * 60)
+    return 0
+
+
 def cmd_genre(args):
     """Genre pack management."""
     action = getattr(args, "genre_action", None)
@@ -744,6 +1144,7 @@ def main():
     p_post.add_argument("--slug", help="Novel slug")
     p_post.add_argument("--volume", help="Volume number")
     p_post.add_argument("--file", help="Direct chapter file path")
+    p_post.add_argument("--story", action="store_true", help="Auto-generate story commit after post")
     # review
     p_review = sub.add_parser("review", help="Run guard review on a chapter")
     p_review.add_argument("chapter_no", nargs="?", help="Chapter number")
@@ -780,6 +1181,28 @@ def main():
     # wc
     p_wc = sub.add_parser("wc", help="Count Chinese characters in a chapter file")
     p_wc.add_argument("file_path", nargs="?", help="Path to chapter TXT file")
+    # story
+    p_story = sub.add_parser("story", help="Story contract system")
+    p_story_sub = p_story.add_subparsers(dest="story_action")
+    p_story_sub.add_parser("init", help="Initialize .story/ directory")
+    p_story_sub_contract = p_story_sub.add_parser("contract", help="Generate chapter contract")
+    p_story_sub_contract.add_argument("chapter_no", nargs="?", default="1")
+    p_story_sub_commit = p_story_sub.add_parser("commit", help="Generate chapter commit")
+    p_story_sub_commit.add_argument("chapter_no", nargs="?", default="1")
+    p_story_sub.add_parser("health", help="Check story chain health")
+
+    # query
+    p_query = sub.add_parser("query", help="Query project memory")
+    p_query.add_argument("question", nargs="*", help="Natural language question")
+
+    # learn
+    p_learn = sub.add_parser("learn", help="Writing rules learned")
+    p_learn.add_argument("action", nargs="?", default="list", choices=["add", "list", "remove"])
+    p_learn.add_argument("rule", nargs="*", help="Rule text to add")
+
+    # board
+    sub.add_parser("board", help="Readonly status board")
+
     # genre
     p_genre = sub.add_parser("genre", help="Genre pack management")
     p_genre_sub = p_genre.add_subparsers(dest="genre_action")
@@ -809,7 +1232,8 @@ def main():
         sys.exit(cmd_post(getattr(args, "chapter_no", None),
                          getattr(args, "slug", None),
                          getattr(args, "volume", None),
-                         getattr(args, "file", None)))
+                         getattr(args, "file", None),
+                         getattr(args, "story", False)))
     elif args.command == "review":
         sys.exit(cmd_review(getattr(args, "chapter_no", None),
                            getattr(args, "slug", None),
@@ -832,6 +1256,14 @@ def main():
         sys.exit(cmd_genre(args))
     elif args.command == "style":
         sys.exit(cmd_style(args))
+    elif args.command == "story":
+        sys.exit(cmd_story(args))
+    elif args.command == "query":
+        sys.exit(cmd_query(args))
+    elif args.command == "learn":
+        sys.exit(cmd_learn(args))
+    elif args.command == "board":
+        sys.exit(cmd_board(args))
     else:
         parser.print_help()
 
