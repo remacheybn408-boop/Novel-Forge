@@ -850,15 +850,10 @@ def cmd_export(slug: str = None, fmt: str = "md"):
     except Exception:
         pass
 
-    # 输出到导出目录：config 的 export_output_dir（相对 novels_root）或 导出/ 子目录
+    # 输出到小说自己的文件夹：novels_root/{书名}/{书名}.txt
     cfg = _load_project_config()
-    export_base = cfg.get("paths", {}).get("export_output_dir", "")
     nr = Path(_get_novels_root())
-    if export_base:
-        exports_root = resolve_path(nr, export_base)
-    else:
-        exports_root = nr / "导出"
-    out_dir = exports_root / title
+    out_dir = nr / title
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / f"{title}{ext}"
 
@@ -4209,10 +4204,8 @@ def cmd_setup():
     try:
         p.mkdir(parents=True, exist_ok=True)
         (p / "大纲").mkdir(exist_ok=True)
-        (p / "导出").mkdir(exist_ok=True)
     except Exception as e:
         print(f"  ⚠️ 无法创建目录: {e}")
-        print(f"  将继续设置路径，但请确保文件夹存在。")
 
     # Save
     if "paths" not in cfg:
@@ -4220,13 +4213,12 @@ def cmd_setup():
     cfg["novels_root"] = str(p)
     cfg["paths"]["novels_root"] = str(p)
     cfg["paths"]["outline_dir"] = "大纲"
-    cfg["paths"]["export_output_dir"] = "导出"
     cfg_file.write_text(_json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
 
     print()
     print(f"  ✅ 小说文件夹已设置为: {p}")
-    print(f"     大纲目录:     {p / '大纲'}")
-    print(f"     导出目录:     {p / '导出'}")
+    print(f"     大纲暂存区:     {p / '大纲'}")
+    print(f"     每部小说自动建子文件夹，导出也在各自文件夹内")
     print()
     print(f"  现在可以把大纲 .txt 放到 {p / '大纲'} 下，")
     print(f"  然后运行 python novel.py outline add")
