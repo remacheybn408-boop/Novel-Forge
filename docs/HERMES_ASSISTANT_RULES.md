@@ -50,5 +50,7 @@
 ## 终端命令保留
 
 高级用户可手动运行：
-- `python novel.py scc-help` — 完整中文手册
+- `python novel.py scc-help` — 完整中文手册（含 Hermes 用户指南）
 - `python novel.py menu` — 交互式终端菜单
+
+Hermes Agent 用户可直接说「帮助」「怎么用」等自然语言触发菜单。

@@ -154,12 +154,14 @@ def cmd_demo():
         print("\n[STEP 2] config.json found. Checking database...")
 
     cfg_data = _load_project_config()
-    db_path = resolve_path(PROJECT_ROOT, cfg_data.get("db_path", "./data/novel_memory.db"))
+    # P0-2: Use active slot novel.db instead of global data/novel_memory.db
+    db_path = _get_active_db_path()
+    print(f"  Active slot DB: {db_path}")
     if not db_path.exists():
         print("  Database missing, initializing now...")
         cmd_init()
         cfg_data = _load_project_config()
-        db_path = resolve_path(PROJECT_ROOT, cfg_data.get("db_path", "./data/novel_memory.db"))
+        db_path = _get_active_db_path()
 
     slug = cfg_data.get("default_novel_slug", "demo_novel")
     title = cfg_data.get("default_novel_title", "Demo Novel")
@@ -996,7 +998,7 @@ def cmd_story(args):
         chapter_no = int(getattr(args, "chapter_no", "1") or "1")
         
         # P0-2: Verify contract exists before allowing commit
-        contract_path = PROJECT_ROOT / ".story" / "chapters" / f"chapter_{chapter_no}_contract.json"
+        contract_path = PROJECT_ROOT / ".story" / "chapters" / f"chapter_{chapter_no:03d}_contract.json"
         if not contract_path.exists():
             print(f"  [FAIL] 第{chapter_no}章没有合同，不能提交。请先执行：python novel.py story contract {chapter_no}")
             return 1
@@ -1154,14 +1156,29 @@ def cmd_query(args):
                     data = _json.loads(text)
                     ch_no = data.get('chapter_no', '?')
                     ch_title = data.get('chapter_title', '')
+                    scene_goal = data.get('required_scene_goal', '')
                     open_promises = data.get('open_promises_to_keep', [])
                     forbidden = data.get('forbidden_changes', [])
                     active_chars = data.get('active_characters', [])
+                    min_rules = data.get('minimum_quality_rules', {})
+                    must_advance = min_rules.get('must_advance_plot', None)
                     print(f"  [合同 ch{ch_no}] {ch_title}")
+                    if scene_goal:
+                        print(f"    场景目标: {scene_goal}")
                     if open_promises:
-                        print(f"    开放伏笔: {len(open_promises)} 个")
+                        print(f"    开放伏笔 ({len(open_promises)}):")
+                        for p in open_promises[:3]:
+                            print(f"      · {str(p)[:80]}")
+                        if len(open_promises) > 3:
+                            print(f"      ...还有 {len(open_promises)-3} 个")
                     if forbidden:
-                        print(f"    禁止变更: {len(forbidden)} 项")
+                        print(f"    禁止变更 ({len(forbidden)}):")
+                        for f in forbidden[:3]:
+                            print(f"      · {str(f)[:80]}")
+                        if len(forbidden) > 3:
+                            print(f"      ...还有 {len(forbidden)-3} 项")
+                    if must_advance is not None:
+                        print(f"    必须推进剧情: {'是' if must_advance else '否'}")
                     if active_chars:
                         print(f"    活跃角色: {len(active_chars)} 个")
             except Exception:
@@ -1314,15 +1331,8 @@ def cmd_board(args):
 
     # DB status
     try:
-        db_cfg = PROJECT_ROOT / "config.json"
-        if db_cfg.exists():
-            cfg_data = _load_project_config()
-            db_path = cfg_data.get("db_path", "./data/novel_memory.db")
-        else:
-            db_path = str(PROJECT_ROOT / "data" / "novel_memory.db")
-        dbp = Path(db_path)
-        if not dbp.is_absolute():
-            dbp = PROJECT_ROOT / dbp
+        # P0-2: Use active slot novel.db instead of config.json db_path
+        dbp = _get_active_db_path()
         if dbp.exists():
             import sqlite3
             conn = sqlite3.connect(str(dbp))
@@ -1449,6 +1459,40 @@ def _get_workspace_dir() -> Path:
     return PROJECT_ROOT / "workspace"
 
 
+def _get_active_db_path() -> Path:
+    """Get the novel.db path for the currently active slot.
+
+    Priority:
+    1. workspace/registry.json → active_slot → workspace/<slot>/novel.db
+    2. Fallback: config.json db_path (legacy global DB)
+    """
+    import json as _json
+    ws_dir = _get_workspace_dir()
+    registry_file = ws_dir / "registry.json"
+
+    if registry_file.exists():
+        try:
+            registry = _json.loads(registry_file.read_text(encoding="utf-8"))
+            active = registry.get("active_slot", "")
+            if active:
+                slot_db = ws_dir / active / "novel.db"
+                if slot_db.exists():
+                    return slot_db
+        except Exception:
+            pass
+
+    # Fallback: legacy config.json db_path
+    try:
+        cfg_data = _load_project_config()
+        db = cfg_data.get("db_path", "./data/novel_memory.db")
+        p = Path(db)
+        if not p.is_absolute():
+            p = PROJECT_ROOT / db
+        return p
+    except Exception:
+        return PROJECT_ROOT / "data" / "novel_memory.db"
+
+
 def _db_init(force=False):
     """Initialize workspace directory structure."""
     ws_dir = _get_workspace_dir()
@@ -1513,16 +1557,254 @@ def _db_init(force=False):
 
 
 def _create_slot_structure(slot_dir: Path):
-    """Create standard slot directory structure."""
+    """Create standard slot directory structure including novel.db."""
+    import json as _json
+    import sqlite3
+    from datetime import datetime
+
     slot_dir.mkdir(parents=True, exist_ok=True)
     for subdir in ["outlines", "chapters", "reports", "exports", "backups"]:
         (slot_dir / subdir).mkdir(parents=True, exist_ok=True)
 
+    # P0-2: Create per-slot novel.db with full schema (if not exists)
+    db_path = slot_dir / "novel.db"
+    if not db_path.exists():
+        conn = sqlite3.connect(str(db_path))
+        try:
+            conn.executescript("""
+                CREATE TABLE IF NOT EXISTS novels (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    slug TEXT UNIQUE NOT NULL,
+                    title TEXT NOT NULL,
+                    genre TEXT DEFAULT '',
+                    theme TEXT DEFAULT '',
+                    description TEXT DEFAULT '',
+                    target_words INTEGER DEFAULT 0,
+                    current_words INTEGER DEFAULT 0,
+                    status TEXT DEFAULT 'planning',
+                    created_at TEXT DEFAULT (datetime('now')),
+                    updated_at TEXT DEFAULT (datetime('now'))
+                );
+
+                CREATE TABLE IF NOT EXISTS volumes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    novel_id INTEGER NOT NULL REFERENCES novels(id),
+                    volume_no INTEGER NOT NULL,
+                    title TEXT DEFAULT '',
+                    summary TEXT DEFAULT '',
+                    target_words INTEGER DEFAULT 0,
+                    UNIQUE(novel_id, volume_no)
+                );
+
+                CREATE TABLE IF NOT EXISTS chapters (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    novel_id INTEGER NOT NULL REFERENCES novels(id),
+                    volume_id INTEGER REFERENCES volumes(id),
+                    chapter_no INTEGER NOT NULL,
+                    title TEXT DEFAULT '',
+                    content TEXT DEFAULT '',
+                    summary TEXT DEFAULT '',
+                    word_count INTEGER DEFAULT 0,
+                    status TEXT DEFAULT 'draft',
+                    file_path TEXT DEFAULT '',
+                    created_at TEXT DEFAULT (datetime('now')),
+                    updated_at TEXT DEFAULT (datetime('now')),
+                    UNIQUE(novel_id, chapter_no)
+                );
+
+                CREATE TABLE IF NOT EXISTS chapter_chunks (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    novel_id INTEGER NOT NULL REFERENCES novels(id),
+                    chapter_id INTEGER NOT NULL REFERENCES chapters(id),
+                    chunk_no INTEGER NOT NULL,
+                    content TEXT NOT NULL,
+                    word_count INTEGER DEFAULT 0,
+                    created_at TEXT DEFAULT (datetime('now'))
+                );
+
+                CREATE TABLE IF NOT EXISTS characters (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    novel_id INTEGER NOT NULL REFERENCES novels(id),
+                    name TEXT NOT NULL,
+                    alias TEXT DEFAULT '',
+                    role TEXT DEFAULT '',
+                    identity TEXT DEFAULT '',
+                    personality TEXT DEFAULT '',
+                    motivation TEXT DEFAULT '',
+                    ability TEXT DEFAULT '',
+                    relationship TEXT DEFAULT '',
+                    arc TEXT DEFAULT '',
+                    status TEXT DEFAULT 'active',
+                    tags TEXT DEFAULT ''
+                );
+
+                CREATE TABLE IF NOT EXISTS worldbuilding (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    novel_id INTEGER NOT NULL REFERENCES novels(id),
+                    category TEXT DEFAULT '',
+                    title TEXT NOT NULL,
+                    content TEXT DEFAULT '',
+                    importance INTEGER DEFAULT 3,
+                    tags TEXT DEFAULT ''
+                );
+
+                CREATE TABLE IF NOT EXISTS plot_threads (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    novel_id INTEGER NOT NULL REFERENCES novels(id),
+                    title TEXT NOT NULL,
+                    content TEXT DEFAULT '',
+                    thread_type TEXT DEFAULT '伏笔',
+                    introduced_chapter INTEGER,
+                    resolved_chapter INTEGER,
+                    status TEXT DEFAULT 'open',
+                    importance INTEGER DEFAULT 3
+                );
+
+                CREATE TABLE IF NOT EXISTS writing_rules (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    novel_id INTEGER NOT NULL REFERENCES novels(id),
+                    title TEXT NOT NULL,
+                    content TEXT DEFAULT '',
+                    rule_type TEXT DEFAULT 'other',
+                    importance INTEGER DEFAULT 3,
+                    status TEXT DEFAULT 'active'
+                );
+
+                CREATE TABLE IF NOT EXISTS chapter_summaries (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    novel_id INTEGER NOT NULL REFERENCES novels(id),
+                    chapter_id INTEGER NOT NULL REFERENCES chapters(id),
+                    short_summary TEXT DEFAULT '',
+                    long_summary TEXT DEFAULT '',
+                    key_events TEXT DEFAULT '',
+                    characters_involved TEXT DEFAULT '',
+                    new_settings TEXT DEFAULT '',
+                    foreshadowing TEXT DEFAULT '',
+                    continuity_notes TEXT DEFAULT '',
+                    created_at TEXT DEFAULT (datetime('now')),
+                    updated_at TEXT DEFAULT (datetime('now')),
+                    UNIQUE(novel_id, chapter_id)
+                );
+
+                CREATE TABLE IF NOT EXISTS continuity_checks (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    novel_id INTEGER NOT NULL REFERENCES novels(id),
+                    chapter_id INTEGER NOT NULL REFERENCES chapters(id),
+                    check_type TEXT DEFAULT 'continuity',
+                    issue TEXT DEFAULT '',
+                    suggestion TEXT DEFAULT '',
+                    severity INTEGER DEFAULT 1,
+                    status TEXT DEFAULT 'open',
+                    created_at TEXT DEFAULT (datetime('now'))
+                );
+
+                CREATE TABLE IF NOT EXISTS novel_logs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    action TEXT NOT NULL,
+                    target_type TEXT,
+                    target_id INTEGER,
+                    detail TEXT DEFAULT '',
+                    created_at TEXT DEFAULT (datetime('now'))
+                );
+
+                CREATE TABLE IF NOT EXISTS chapter_versions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    novel_id INTEGER NOT NULL REFERENCES novels(id),
+                    chapter_id INTEGER,
+                    chapter_no INTEGER NOT NULL,
+                    version_no INTEGER NOT NULL DEFAULT 1,
+                    version_status TEXT DEFAULT 'draft',
+                    title TEXT DEFAULT '',
+                    content TEXT NOT NULL,
+                    word_count INTEGER DEFAULT 0,
+                    change_reason TEXT DEFAULT '',
+                    created_at TEXT DEFAULT (datetime('now'))
+                );
+
+                CREATE TABLE IF NOT EXISTS reader_promises (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    novel_id INTEGER NOT NULL REFERENCES novels(id),
+                    promise_title TEXT NOT NULL,
+                    promise_detail TEXT NOT NULL,
+                    introduced_chapter INTEGER,
+                    expected_payoff_range TEXT DEFAULT '',
+                    payoff_chapter INTEGER,
+                    status TEXT DEFAULT 'open',
+                    importance INTEGER DEFAULT 3,
+                    reader_emotion TEXT DEFAULT '',
+                    created_at TEXT DEFAULT (datetime('now')),
+                    updated_at TEXT DEFAULT (datetime('now'))
+                );
+
+                CREATE TABLE IF NOT EXISTS volume_plans (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    novel_id INTEGER NOT NULL REFERENCES novels(id),
+                    volume_no INTEGER NOT NULL,
+                    planned_title TEXT DEFAULT '',
+                    final_title TEXT DEFAULT '',
+                    title_status TEXT DEFAULT 'planned',
+                    suggested_chapters INTEGER DEFAULT 25,
+                    min_chapters INTEGER DEFAULT 20,
+                    max_chapters INTEGER DEFAULT 29,
+                    volume_goal TEXT DEFAULT '',
+                    opening_state TEXT DEFAULT '',
+                    ending_target TEXT DEFAULT '',
+                    must_complete TEXT DEFAULT '',
+                    unresolved_hooks_to_next TEXT DEFAULT '',
+                    outline_version INTEGER DEFAULT 1,
+                    created_at TEXT DEFAULT (datetime('now')),
+                    updated_at TEXT DEFAULT (datetime('now')),
+                    UNIQUE(novel_id, volume_no)
+                );
+
+                CREATE TABLE IF NOT EXISTS chapter_plans (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    novel_id INTEGER NOT NULL REFERENCES novels(id),
+                    volume_no INTEGER NOT NULL,
+                    chapter_no INTEGER NOT NULL,
+                    planned_title TEXT DEFAULT '',
+                    final_title TEXT DEFAULT '',
+                    title_status TEXT DEFAULT 'planned',
+                    plan_status TEXT DEFAULT 'planned',
+                    chapter_goal TEXT DEFAULT '',
+                    main_event TEXT DEFAULT '',
+                    character_focus TEXT DEFAULT '',
+                    conflict_point TEXT DEFAULT '',
+                    must_include TEXT DEFAULT '',
+                    plot_threads_to_advance TEXT DEFAULT '',
+                    reader_promises_to_advance TEXT DEFAULT '',
+                    ending_hook_direction TEXT DEFAULT '',
+                    continuity_from_previous TEXT DEFAULT '',
+                    title_change_reason TEXT DEFAULT '',
+                    actual_word_count INTEGER DEFAULT 0,
+                    actual_summary TEXT DEFAULT '',
+                    completion_status TEXT DEFAULT '',
+                    ingested_at TEXT DEFAULT '',
+                    outline_version INTEGER DEFAULT 1,
+                    created_at TEXT DEFAULT (datetime('now')),
+                    updated_at TEXT DEFAULT (datetime('now')),
+                    UNIQUE(novel_id, volume_no, chapter_no)
+                );
+
+                CREATE TABLE IF NOT EXISTS title_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    novel_id INTEGER NOT NULL REFERENCES novels(id),
+                    volume_no INTEGER,
+                    chapter_no INTEGER,
+                    old_title TEXT DEFAULT '',
+                    new_title TEXT DEFAULT '',
+                    title_type TEXT DEFAULT 'chapter',
+                    change_reason TEXT DEFAULT '',
+                    changed_at TEXT DEFAULT (datetime('now'))
+                );
+            """)
+            conn.commit()
+        finally:
+            conn.close()
+
     # Create project.json if not exists
     proj_file = slot_dir / "project.json"
     if not proj_file.exists():
-        import json as _json
-        from datetime import datetime
         proj_file.write_text(_json.dumps({
             "name": slot_dir.name,
             "title": "未命名项目",
@@ -1591,19 +1873,21 @@ def _db_list():
                 except Exception:
                     pass
 
-            # 统计章节和字数
-            chapters_dir = slot_dir / "chapters"
-            if chapters_dir.exists():
-                ch_files = list(chapters_dir.glob("*.json"))
-                chapter_count = max(chapter_count, len(ch_files))
-                for cf in ch_files:
-                    try:
-                        ch_data = _json.loads(cf.read_text(encoding="utf-8"))
-                        wc = ch_data.get("word_count", 0)
-                        if isinstance(wc, (int, float)):
-                            word_count += int(wc)
-                    except Exception:
-                        pass
+            # P1-5: 从 novel.db 统计章节和字数（真实数据）
+            db_file = slot_dir / "novel.db"
+            if db_file.exists():
+                try:
+                    import sqlite3
+                    conn = sqlite3.connect(str(db_file))
+                    cur = conn.execute("SELECT COUNT(*), COALESCE(SUM(word_count), 0) FROM chapters")
+                    row = cur.fetchone()
+                    if row:
+                        db_ch_count, db_wc = row
+                        chapter_count = max(chapter_count, db_ch_count or 0)
+                        word_count = db_wc or 0
+                    conn.close()
+                except Exception:
+                    pass
 
         # ── 显示 ──
         marker = "★" if is_active else " "
@@ -1746,7 +2030,7 @@ def _db_new(name, description=""):
 
     # Check if we need to auto-create more slots
     if max_idx >= 3 and (max_idx + 1) % 4 == 0:
-        print(f"  ℹ️  已满 {max_idx} 个 slot，将在创建 slot_{next_idx+1:03d} 时自动扩展。")
+        print(f"  ℹ️  已满 {max_idx} 个 slot，正在创建 {slot_id}（将自动扩展后续 slot）。")
 
     # Create slot structure
     slot_dir = ws_dir / slot_id
@@ -2948,6 +3232,16 @@ def cmd_scc_help():
     print("=" * 68)
     print()
     print("  novel.py 是所有操作的统一入口。")
+    print()
+    print("  ── Hermes/Agent 用户 ──")
+    print("  如果你是 Hermes Agent 用户，可以直接用自然语言与我对话：")
+    print("  · 说「我要写第3章」→ 我会检查上下文并生成任务卡")
+    print("  · 说「添加大纲」→ 我会引导你上传或粘贴大纲内容")
+    print("  · 说「审稿第1章」→ 我会运行 Agent 陪审团审查")
+    print("  · 说「导出小说」→ 我会帮你导出 Markdown")
+    print("  · 说「菜单」→ 我会显示交互式中文菜单")
+    print()
+    print("  ── CLI/终端用户 ──")
     print("  以下按功能分类列出常用命令。")
     print()
 
@@ -3071,8 +3365,9 @@ def cmd_scc_help():
     print("     不同小说用 db new 创建独立工作区（数据互不干扰）")
     print()
     print("  Q: 数据库文件在哪里？")
-    print("  A: config.json 中 db_path 字段指定，一般是 data/novel_memory.db。")
-    print("     每个 DB slot 在 workspace/<slot_id>/ 下有独立的项目文件。")
+    print("  A: 每个 DB slot 在 workspace/<slot_id>/ 下有独立的 novel.db。")
+    print("     例如当前活跃 slot 的数据库: workspace/<active_slot>/novel.db")
+    print("     config.json 中 db_path 字段也可以指定自定义路径。")
     print()
     print("  Q: 如何查看完整帮助？")
     print("  A: python novel.py --help      查看所有命令列表")
@@ -3789,14 +4084,16 @@ def cmd_stability_check():
         for iss in p1_issues:
             print(f"    ⚠ {iss}")
 
-    if score >= 80:
+    if p0_issues:
+        print(f"\n  建议: 不建议发布（存在 P0 问题，必须先修复）")
+    elif score >= 80:
         print(f"\n  建议: 可以发布正式版")
     elif score >= 60:
-        print(f"\n  建议: 修复 P0 问题后再发布")
+        print(f"\n  建议: 修复 P1 问题后再发布")
     else:
         print(f"\n  建议: 不建议发布")
     print("=" * 60)
-    return 0 if score >= 80 else 1
+    return 0 if not p0_issues and score >= 80 else 1
 
 
 def main():
@@ -3805,6 +4102,8 @@ def main():
     parser = argparse.ArgumentParser(
         description=f"Novel Pipeline - Write Engine {get_version()} CLI",
     )
+    parser.add_argument('--version', action='version',
+                        version=f'Novel Pipeline - Write Engine {get_version()}')
     sub = parser.add_subparsers(dest="command", help="Command to run")
 
     # status

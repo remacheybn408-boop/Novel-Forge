@@ -52,7 +52,21 @@ def load_config(config_path: str) -> dict:
 
 
 def get_db_path(config: dict) -> str:
-    """Get database path from config."""
+    """P0-2: Get database path — prefer active slot novel.db, fallback to config."""
+    # Try active slot novel.db first
+    try:
+        ws_dir = PROJECT_ROOT / "workspace"
+        registry_file = ws_dir / "registry.json"
+        if registry_file.exists():
+            registry = json.loads(registry_file.read_text(encoding="utf-8"))
+            active = registry.get("active_slot", "")
+            if active:
+                slot_db = ws_dir / active / "novel.db"
+                if slot_db.exists():
+                    return str(slot_db)
+    except Exception:
+        pass
+    # Fallback to config.json db_path
     db = config.get("db_path", str(PROJECT_ROOT / "data" / "novel_memory.db"))
     p = Path(db)
     if not p.is_absolute():

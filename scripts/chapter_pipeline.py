@@ -80,6 +80,23 @@ def load_config(config_path=None):
     return normalize_config(DEFAULT_CONFIG)
 
 
+def _resolve_slot_db_path(cfg):
+    """P0-2: Try to resolve the active slot's novel.db, fallback to config db_path."""
+    try:
+        ws_dir = Path("workspace")
+        registry_file = ws_dir / "registry.json"
+        if registry_file.exists():
+            registry = json.loads(registry_file.read_text(encoding="utf-8"))
+            active = registry.get("active_slot", "")
+            if active:
+                slot_db = ws_dir / active / "novel.db"
+                if slot_db.exists():
+                    return str(slot_db)
+    except Exception:
+        pass
+    return cfg.get("db_path", DEFAULT_CONFIG["db_path"])
+
+
 # ============================================================
 # 全局状态（由 main 初始化）
 # ============================================================
@@ -1119,6 +1136,9 @@ def main():
     cfg = load_config(args.config)
     if args.db_path:
         cfg["db_path"] = args.db_path
+    else:
+        # P0-2: If no explicit --db-path, resolve active slot novel.db
+        cfg["db_path"] = _resolve_slot_db_path(cfg)
 
     novel_title = args.novel_title or cfg.get("default_novel_title", args.novel_slug)
     if not args.novel_title:

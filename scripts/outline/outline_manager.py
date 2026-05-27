@@ -138,13 +138,33 @@ class OutlineManager:
         if not active:
             return {"status": "error", "message": "没有活跃的工作区。请先运行 python novel.py db init"}
 
-        # 提取标题（优先使用传入标题，其次取首行非空非#行）
+        # 提取标题（优先使用传入标题，其次从文本内容智能提取）
         if not title:
             for line in content.strip().split("\n"):
-                line = line.strip().lstrip("#").strip()
-                if line:
-                    title = line[:40]
+                raw = line.strip()
+                # Skip empty lines and pure markdown headers
+                if not raw:
+                    continue
+                # Pattern: 《书名》or # 《书名》
+                import re as _re
+                m = _re.search(r'[《「](.+?)[》」]', raw)
+                if m:
+                    title = m.group(1)[:40]
                     break
+                # Pattern: 标题: xxx or 标题：xxx or 书名: xxx or 书名：xxx or 小说名: xxx
+                m = _re.match(r'(标题|书名|小说名|作品名)[：:]\s*', raw)
+                if m:
+                    title = raw[m.end():].strip()[:40]
+                    break
+                # Pattern: # 开头（含空格）
+                if raw.startswith('#'):
+                    title = raw.lstrip('#').strip()[:40]
+                    if title:
+                        break
+                    continue
+                # Fallback: first non-empty, non-hash line
+                title = raw[:40]
+                break
         if not title:
             title = "未命名大纲"
 
@@ -558,7 +578,7 @@ class OutlineManager:
         return None
 
     def _get_next_slot_id(self) -> str:
-        """自动生成下一个 slot ID (slot_004, slot_005, ...)"""
+        """自动生成下一个 slot ID（如 slot_004, slot_006 等）"""
         reg = self._get_registry()
         slots = reg.get("slots", [])
         max_idx = 0
