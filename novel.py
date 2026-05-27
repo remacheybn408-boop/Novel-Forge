@@ -4077,6 +4077,81 @@ def _menu_advanced():
             print("  无效选择，请重试。")
 
 
+def cmd_setup():
+    """v0.6.5-clean7: 交互式设置 — 引导用户配置小说文件夹路径."""
+    import json as _json
+    cfg_file = PROJECT_ROOT / "config.json"
+
+    print()
+    print("  " + "=" * 55)
+    print("  📁 项目设置 — 配置小说文件夹")
+    print("  " + "=" * 55)
+    print()
+
+    # Read current
+    try:
+        cfg = _json.loads(cfg_file.read_text(encoding="utf-8"))
+    except Exception:
+        cfg = {"novels_root": "./novels", "paths": {}}
+
+    current = cfg.get("novels_root", "未设置")
+    print(f"  当前小说文件夹: {current}")
+    print()
+    print("  你的小说章节文件放在哪个文件夹？")
+    print("  例如: D:\\小说  或  E:\\我的小说")
+    print()
+    print("  提示:")
+    print("  · 文件夹下会自动创建「大纲/」「导出/」子目录")
+    print("  · 每部小说会有自己的子文件夹")
+    print("  · 可以随时修改")
+    print()
+
+    try:
+        new_path = input("  请输入路径 (回车保留当前): ").strip()
+    except (EOFError, KeyboardInterrupt):
+        print()
+        return 0
+
+    if not new_path:
+        print("  已取消，保持原设置。")
+        return 0
+
+    # Validate
+    from pathlib import Path
+    p = Path(new_path)
+    if not p.is_absolute():
+        print(f"  ⚠️ 请输入完整路径（如 D:\\小说），不要用相对路径。")
+        return 1
+
+    # Create directory if needed
+    try:
+        p.mkdir(parents=True, exist_ok=True)
+        (p / "大纲").mkdir(exist_ok=True)
+        (p / "导出").mkdir(exist_ok=True)
+    except Exception as e:
+        print(f"  ⚠️ 无法创建目录: {e}")
+        print(f"  将继续设置路径，但请确保文件夹存在。")
+
+    # Save
+    if "paths" not in cfg:
+        cfg["paths"] = {}
+    cfg["novels_root"] = str(p)
+    cfg["paths"]["novels_root"] = str(p)
+    cfg["paths"]["outline_dir"] = "大纲"
+    cfg["paths"]["export_output_dir"] = "导出"
+    cfg_file.write_text(_json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    print()
+    print(f"  ✅ 小说文件夹已设置为: {p}")
+    print(f"     大纲目录:     {p / '大纲'}")
+    print(f"     导出目录:     {p / '导出'}")
+    print()
+    print(f"  现在可以把大纲 .txt 放到 {p / '大纲'} 下，")
+    print(f"  然后运行 python novel.py outline add")
+    print()
+    return 0
+
+
 def cmd_menu():
     """交互式文本菜单 — 用 input() 实现的纯终端菜单。"""
     while True:
@@ -4093,9 +4168,10 @@ def cmd_menu():
         print("  [7] 报告与导出    守卫报告、导出小说")
         print("  [8] 操作手册      打印完整中文手册")
         print("  [9] 高级命令      genre/style/RAG/learn/query")
+        print("  [S] 项目设置      设置小说文件夹路径")
         print("  [0] 退出")
         print()
-        choice = input("  请选择 [0-9]: ").strip()
+        choice = input("  请选择 [0-9/S]: ").strip()
 
         if choice == "1":
             # 新手检查
@@ -4151,6 +4227,9 @@ def cmd_menu():
 
         elif choice == "9":
             _menu_advanced()
+
+        elif choice.upper() == "S":
+            cmd_setup()
 
         elif choice == "0":
             print()
@@ -4610,6 +4689,8 @@ def main():
     # P2-1: stability-check
     p_sc = sub.add_parser("stability-check", help="运行稳定性自检，输出评分和问题清单")
     p_sc.add_argument("--full", action="store_true", help="完整模式（含 pytest + demo）")
+    # v0.6.5-clean7: setup
+    sub.add_parser("setup", help="设置小说文件夹路径")
 
     args = parser.parse_args()
 
@@ -4687,6 +4768,8 @@ def main():
         sys.exit(cmd_agents(_ap.Namespace(agents_action="review", chapter_no=ch, mode="light", slug=None, genre=None, style=None)))
     elif args.command == "stability-check":
         sys.exit(cmd_stability_check(args))
+    elif args.command == "setup":
+        sys.exit(cmd_setup())
     else:
         # P2-2: 友好的"我该做什么"提示
         print("=" * 50)
@@ -4695,9 +4778,10 @@ def main():
         print()
         print("  你现在可以：")
         print()
-        print("  1. 第一次使用 →  python novel.py start")
+        print("  0. 首次使用   →  python novel.py setup     # 设置小说文件夹")
+        print("  1. 交互菜单   →  python novel.py start")
         print("  2. 检查环境   →  python novel.py status")
-        print("  3. 添加大纲   →  python novel.py outline add D:\\小说\\大纲\\XXX.txt")
+        print("  3. 添加大纲   →  python novel.py outline add")
         print("  4. 查看作品   →  python novel.py books")
         print("  5. 开始写作   →  python novel.py write 1")
         print("  6. 审稿       →  python novel.py jury 1")
