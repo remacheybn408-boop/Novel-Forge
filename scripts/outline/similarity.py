@@ -254,7 +254,11 @@ class OutlineSimilarity:
         max_vol = max(struct1["volume_count"], struct2["volume_count"], 1)
         vol_sim = 1.0 - min(vol_diff / max_vol, 1.0)
 
-        struct_score = (ch_sim * 0.6 + vol_sim * 0.4) * 100
+        # v0.6.5-clean5: 双方均为 0 章 → 不参与评分
+        if struct1["chapter_count"] == 0 and struct2["chapter_count"] == 0:
+            struct_score = None
+        else:
+            struct_score = (ch_sim * 0.6 + vol_sim * 0.4) * 100
 
         # 5. 题材/风格关键词重叠
         gs1 = _extract_genre_style_keywords(content1)
