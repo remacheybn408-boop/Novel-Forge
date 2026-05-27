@@ -65,6 +65,31 @@ def check_health(project_root: Path) -> dict:
             if missing:
                 warnings.append(f"Missing contracts for chapters: {sorted(missing)}")
 
+        # v0.6.5-clean4: Check contract field quality
+        for cf in contracts:
+            try:
+                contract = json.loads(cf.read_text(encoding="utf-8"))
+                ch = contract.get("chapter_no", "?")
+                empty_fields = []
+                if not contract.get("chapter_title", "").strip():
+                    empty_fields.append("标题")
+                if not contract.get("required_scene_goal", "").strip():
+                    empty_fields.append("场景目标")
+                if not contract.get("active_characters"):
+                    empty_fields.append("活跃角色")
+                if not contract.get("open_promises_to_keep"):
+                    empty_fields.append("开放伏笔")
+                if not contract.get("forbidden_changes"):
+                    empty_fields.append("禁止变更")
+                if not contract.get("target_scenes"):
+                    empty_fields.append("目标场景")
+                if empty_fields:
+                    warnings.append(
+                        f"合同 ch{ch} 字段为空: {', '.join(empty_fields)}"
+                    )
+            except Exception as e:
+                warnings.append(f"无法解析合同: {cf.name} — {e}")
+
         # Check each commit for empty/invalid data
         for cf in commits:
             try:

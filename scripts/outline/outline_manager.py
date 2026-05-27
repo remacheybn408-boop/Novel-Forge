@@ -594,7 +594,8 @@ class OutlineManager:
         return f"slot_{max_idx + 1:03d}"
 
     def _create_slot_structure(self, slot_id: str, name: str = "", description: str = "") -> Path:
-        """创建 slot 目录结构和 project.json"""
+        """创建 slot 目录结构和 project.json + novel.db（v0.6.5-clean4: 统一建库）"""
+        import sqlite3
         slot_dir = self.workspace_dir / slot_id
         slot_dir.mkdir(parents=True, exist_ok=True)
         for subdir in ["outlines", "chapters", "reports", "exports", "backups"]:
@@ -609,6 +610,68 @@ class OutlineManager:
             "updated_at": datetime.now().isoformat(),
         }
         proj_file.write_text(json.dumps(proj_data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+        # v0.6.5-clean4: 确保 novel.db 存在（含 FTS5 表）
+        db_path = slot_dir / "novel.db"
+        if not db_path.exists():
+            conn = sqlite3.connect(str(db_path))
+            try:
+                # 委托 SlotManager._init_slot_db 的完整建库逻辑
+                from scripts.db.slot_manager import SlotManager
+                sm = SlotManager(self.project_root)
+                sm._init_slot_db(slot_dir)
+            except Exception:
+                # Fallback: 内联建库（仅 core 表 + FTS5）
+                conn.executescript("""
+                    CREATE TABLE IF NOT EXISTS novels (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        slug TEXT UNIQUE NOT NULL,
+                        title TEXT NOT NULL,
+                        genre TEXT DEFAULT '',
+                        theme TEXT DEFAULT '',
+                        description TEXT DEFAULT '',
+                        target_words INTEGER DEFAULT 0,
+                        current_words INTEGER DEFAULT 0,
+                        status TEXT DEFAULT 'planning',
+                        created_at TEXT DEFAULT (datetime('now')),
+                        updated_at TEXT DEFAULT (datetime('now'))
+                    );
+                    CREATE TABLE IF NOT EXISTS chapters (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        novel_id INTEGER NOT NULL REFERENCES novels(id),
+                        volume_id INTEGER REFERENCES volumes(id),
+                        chapter_no INTEGER NOT NULL,
+                        title TEXT DEFAULT '',
+                        content TEXT DEFAULT '',
+                        summary TEXT DEFAULT '',
+                        word_count INTEGER DEFAULT 0,
+                        status TEXT DEFAULT 'draft',
+                        file_path TEXT DEFAULT '',
+                        created_at TEXT DEFAULT (datetime('now')),
+                        updated_at TEXT DEFAULT (datetime('now')),
+                        UNIQUE(novel_id, chapter_no)
+                    );
+                    -- v0.6.5-clean4: FTS5 tables
+                    CREATE VIRTUAL TABLE IF NOT EXISTS novel_chapter_fts USING fts5(
+                        title, content, summary, content='chapters', content_rowid='id'
+                    );
+                    CREATE VIRTUAL TABLE IF NOT EXISTS novel_chunk_fts USING fts5(
+                        content, summary, content='chapter_chunks', content_rowid='id'
+                    );
+                    CREATE VIRTUAL TABLE IF NOT EXISTS novel_character_fts USING fts5(
+                        name, alias, identity, personality, tags, content='characters', content_rowid='id'
+                    );
+                    CREATE VIRTUAL TABLE IF NOT EXISTS novel_world_fts USING fts5(
+                        title, content, tags, content='worldbuilding', content_rowid='id'
+                    );
+                    CREATE VIRTUAL TABLE IF NOT EXISTS novel_plot_fts USING fts5(
+                        title, content, content='plot_threads', content_rowid='id'
+                    );
+                """)
+                conn.commit()
+            finally:
+                conn.close()
+
         return slot_dir
 
     def _register_slot(self, slot_id: str, name: str = "", description: str = "") -> Dict:

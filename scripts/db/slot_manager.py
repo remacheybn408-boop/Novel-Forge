@@ -60,6 +60,21 @@ class SlotManager:
                     updated_at TEXT DEFAULT (datetime('now'))
                 );
 
+                CREATE TABLE IF NOT EXISTS memories (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    type TEXT DEFAULT 'note',
+                    project TEXT DEFAULT '',
+                    title TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    tags TEXT DEFAULT '',
+                    importance INTEGER DEFAULT 3,
+                    source TEXT DEFAULT '',
+                    status TEXT DEFAULT 'active',
+                    created_at TEXT DEFAULT (datetime('now')),
+                    updated_at TEXT DEFAULT (datetime('now')),
+                    last_used_at TEXT DEFAULT (datetime('now'))
+                );
+
                 CREATE TABLE IF NOT EXISTS volumes (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     novel_id INTEGER NOT NULL REFERENCES novels(id),
@@ -297,6 +312,11 @@ class SlotManager:
                     title, content,
                     content='plot_threads', content_rowid='id'
                 );
+
+                CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(
+                    title, content, tags,
+                    content='memories', content_rowid='id'
+                );
             """)
             conn.commit()
         finally:
@@ -330,6 +350,10 @@ class SlotManager:
                 CREATE VIRTUAL TABLE IF NOT EXISTS novel_plot_fts USING fts5(
                     title, content,
                     content='plot_threads', content_rowid='id'
+                );
+                CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(
+                    title, content, tags,
+                    content='memories', content_rowid='id'
                 );
             """)
             conn.commit()

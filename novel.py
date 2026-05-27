@@ -1599,6 +1599,21 @@ def _create_slot_structure(slot_dir: Path):
                     updated_at TEXT DEFAULT (datetime('now'))
                 );
 
+                CREATE TABLE IF NOT EXISTS memories (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    type TEXT DEFAULT 'note',
+                    project TEXT DEFAULT '',
+                    title TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    tags TEXT DEFAULT '',
+                    importance INTEGER DEFAULT 3,
+                    source TEXT DEFAULT '',
+                    status TEXT DEFAULT 'active',
+                    created_at TEXT DEFAULT (datetime('now')),
+                    updated_at TEXT DEFAULT (datetime('now')),
+                    last_used_at TEXT DEFAULT (datetime('now'))
+                );
+
                 CREATE TABLE IF NOT EXISTS volumes (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     novel_id INTEGER NOT NULL REFERENCES novels(id),
@@ -1836,6 +1851,11 @@ def _create_slot_structure(slot_dir: Path):
                     title, content,
                     content='plot_threads', content_rowid='id'
                 );
+
+                CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(
+                    title, content, tags,
+                    content='memories', content_rowid='id'
+                );
             """)
             conn.commit()
         finally:
@@ -1881,6 +1901,10 @@ def _migrate_slot_fts(slot_dir: Path) -> bool:
             CREATE VIRTUAL TABLE IF NOT EXISTS novel_plot_fts USING fts5(
                 title, content,
                 content='plot_threads', content_rowid='id'
+            );
+            CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(
+                title, content, tags,
+                content='memories', content_rowid='id'
             );
         """)
         conn.commit()
@@ -2569,10 +2593,11 @@ def _check_outline_gate() -> int:
             print("=" * 60)
             print()
             print("  当前小说没有激活大纲，不能开写。")
-            print("  请先执行: python novel.py outline add 大纲.txt")
             print()
-            print("  或者导入已有大纲:")
-            print("  python novel.py outline import 大纲.txt --title \"我的小说\"")
+            print("  💡 把大纲文件放到项目目录，或在 Hermes 里输入「添加大纲」。")
+            print()
+            print("  高级用法:")
+            print("  python novel.py outline add 大纲.txt")
             return 1
     except Exception as e:
         # If outline module not available, allow pass-through
@@ -4003,13 +4028,18 @@ def cmd_menu():
     return 0
 
 
-def cmd_stability_check():
-    """P2-1: 稳定性自检 — 输出评分和问题清单."""
+def cmd_stability_check(args=None):
+    """P2-1: 稳定性自检 — 输出评分和问题清单.
+    v0.6.5-clean4: 默认快速模式，--full 运行 pytest+demo.
+    """
     import subprocess as _sp
     import importlib
 
+    full_mode = getattr(args, "full", False)
+
     print("=" * 60)
-    print(f"  Novel Pipeline - 稳定性自检")
+    mode_label = "完整模式 (pytest + demo)" if full_mode else "快速模式"
+    print(f"  Novel Pipeline - 稳定性自检 ({mode_label})")
     print(f"  版本: {get_version()}")
     print("=" * 60)
     print()
@@ -4093,19 +4123,22 @@ def cmd_stability_check():
         p0_issues.append(f"Agent 仅 {agent_count} 个，目标 >=15")
         score -= 10
 
-    # 7. pytest 可运行
-    try:
-        result = _sp.run([sys.executable, "-m", "pytest", "tests/", "-q", "--tb=no"],
-                         cwd=str(PROJECT_ROOT), timeout=60, capture_output=True, text=True)
-        test_ok = result.returncode == 0
-        checks.append(("pytest", test_ok, f"exit={result.returncode}"))
-        if not test_ok:
-            p0_issues.append("pytest 运行失败")
-            score -= 10
-    except Exception as e:
-        checks.append(("pytest", False, str(e)))
-        p1_issues.append(f"pytest 无法运行: {e}")
-        score -= 5
+    # 7. pytest (--full only)
+    if full_mode:
+        try:
+            result = _sp.run([sys.executable, "-m", "pytest", "tests/", "-q", "--tb=no"],
+                             cwd=str(PROJECT_ROOT), timeout=120, capture_output=True, text=True)
+            test_ok = result.returncode == 0
+            checks.append(("pytest", test_ok, f"exit={result.returncode}"))
+            if not test_ok:
+                p0_issues.append("pytest 运行失败")
+                score -= 10
+        except Exception as e:
+            checks.append(("pytest", False, str(e)))
+            p1_issues.append(f"pytest 无法运行: {e}")
+            score -= 5
+    else:
+        checks.append(("pytest", True, "跳过（使用 --full 运行）"))
 
     # 8. 交叉平台检查
     cp_script = PROJECT_ROOT / "scripts" / "cross_platform_check.py"
@@ -4165,25 +4198,27 @@ def cmd_stability_check():
         p1_issues.append(f"无法检查 slot FTS: {e}")
         score -= 5
 
-    # 11. v0.6.5-clean3: Demo 无 FTS 警告
-    try:
-        # Run demo in a subprocess and check for FTS warning patterns
-        demo_result = _sp.run(
-            [sys.executable, "novel.py", "demo"],
-            cwd=str(PROJECT_ROOT), timeout=120, capture_output=True, text=True
-        )
-        combined = demo_result.stdout + demo_result.stderr
-        has_fts_warn = "FTS:" in combined and ("no such table" in combined or "WARN" in combined)
-        fts_warn_ok = not has_fts_warn
-        checks.append(("Demo 无 FTS 警告", fts_warn_ok,
-                       "无 FTS 警告" if fts_warn_ok else "发现 FTS 警告"))
-        if has_fts_warn:
-            p0_issues.append("Demo 运行时出现 FTS 表缺失警告")
-            score -= 10
-    except Exception as e:
-        checks.append(("Demo 无 FTS 警告", False, str(e)))
-        p1_issues.append(f"无法运行 demo: {e}")
-        score -= 5
+    # 11. v0.6.5-clean3: Demo 无 FTS 警告 (--full only)
+    if full_mode:
+        try:
+            demo_result = _sp.run(
+                [sys.executable, "novel.py", "demo"],
+                cwd=str(PROJECT_ROOT), timeout=120, capture_output=True, text=True
+            )
+            combined = demo_result.stdout + demo_result.stderr
+            has_fts_warn = "FTS:" in combined and ("no such table" in combined or "WARN" in combined)
+            fts_warn_ok = not has_fts_warn
+            checks.append(("Demo 无 FTS 警告", fts_warn_ok,
+                           "无 FTS 警告" if fts_warn_ok else "发现 FTS 警告"))
+            if has_fts_warn:
+                p0_issues.append("Demo 运行时出现 FTS 表缺失警告")
+                score -= 10
+        except Exception as e:
+            checks.append(("Demo 无 FTS 警告", False, str(e)))
+            p1_issues.append(f"无法运行 demo: {e}")
+            score -= 5
+    else:
+        checks.append(("Demo 无 FTS 警告", True, "跳过（使用 --full 运行）"))
 
     # 输出结果
     for name, ok, detail in checks:
@@ -4395,7 +4430,8 @@ def main():
     p_jury = sub.add_parser("jury", help="轻量审稿 (同 agents review --mode light)")
     p_jury.add_argument("chapter_no", nargs="?", help="Chapter number")
     # P2-1: stability-check
-    sub.add_parser("stability-check", help="运行稳定性自检，输出评分和问题清单")
+    p_sc = sub.add_parser("stability-check", help="运行稳定性自检，输出评分和问题清单")
+    p_sc.add_argument("--full", action="store_true", help="完整模式（含 pytest + demo）")
 
     args = parser.parse_args()
 
@@ -4472,7 +4508,7 @@ def main():
             sys.exit(1)
         sys.exit(cmd_agents(_ap.Namespace(agents_action="review", chapter_no=ch, mode="light", slug=None, genre=None, style=None)))
     elif args.command == "stability-check":
-        sys.exit(cmd_stability_check())
+        sys.exit(cmd_stability_check(args))
     else:
         # P2-2: 友好的"我该做什么"提示
         print("=" * 50)
