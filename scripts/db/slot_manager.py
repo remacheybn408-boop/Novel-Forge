@@ -271,8 +271,69 @@ class SlotManager:
                     change_reason TEXT DEFAULT '',
                     changed_at TEXT DEFAULT (datetime('now'))
                 );
+
+                -- FTS5 全文检索索引 (v0.6.5-clean3)
+                CREATE VIRTUAL TABLE IF NOT EXISTS novel_chapter_fts USING fts5(
+                    title, content, summary,
+                    content='chapters', content_rowid='id'
+                );
+
+                CREATE VIRTUAL TABLE IF NOT EXISTS novel_chunk_fts USING fts5(
+                    content, summary,
+                    content='chapter_chunks', content_rowid='id'
+                );
+
+                CREATE VIRTUAL TABLE IF NOT EXISTS novel_character_fts USING fts5(
+                    name, alias, identity, personality, tags,
+                    content='characters', content_rowid='id'
+                );
+
+                CREATE VIRTUAL TABLE IF NOT EXISTS novel_world_fts USING fts5(
+                    title, content, tags,
+                    content='worldbuilding', content_rowid='id'
+                );
+
+                CREATE VIRTUAL TABLE IF NOT EXISTS novel_plot_fts USING fts5(
+                    title, content,
+                    content='plot_threads', content_rowid='id'
+                );
             """)
             conn.commit()
+        finally:
+            conn.close()
+
+    def migrate_slot_fts(self, slot_id: str) -> bool:
+        """Ensure a slot's novel.db has FTS5 tables (idempotent migration, v0.6.5-clean3)."""
+        import sqlite3
+        db_path = self.get_slot_db_path(slot_id)
+        if not db_path.exists():
+            return False
+        conn = sqlite3.connect(str(db_path))
+        try:
+            conn.executescript("""
+                CREATE VIRTUAL TABLE IF NOT EXISTS novel_chapter_fts USING fts5(
+                    title, content, summary,
+                    content='chapters', content_rowid='id'
+                );
+                CREATE VIRTUAL TABLE IF NOT EXISTS novel_chunk_fts USING fts5(
+                    content, summary,
+                    content='chapter_chunks', content_rowid='id'
+                );
+                CREATE VIRTUAL TABLE IF NOT EXISTS novel_character_fts USING fts5(
+                    name, alias, identity, personality, tags,
+                    content='characters', content_rowid='id'
+                );
+                CREATE VIRTUAL TABLE IF NOT EXISTS novel_world_fts USING fts5(
+                    title, content, tags,
+                    content='worldbuilding', content_rowid='id'
+                );
+                CREATE VIRTUAL TABLE IF NOT EXISTS novel_plot_fts USING fts5(
+                    title, content,
+                    content='plot_threads', content_rowid='id'
+                );
+            """)
+            conn.commit()
+            return True
         finally:
             conn.close()
 
@@ -340,6 +401,11 @@ class SlotManager:
             status="normal",
             project_count=0,
         )
+
+        # P0-1 clean3: Migrate all slot DBs to include FTS5 tables
+        for i in range(1, 4):
+            slot_id = f"slot_{i:03d}"
+            self.migrate_slot_fts(slot_id)
 
         result["message"] = f"workspace 初始化完成，创建了 {len(result['created'])-1} 个 slot"
         return result

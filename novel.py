@@ -1080,7 +1080,13 @@ def cmd_story(args):
             for iss in warnings:
                 print(f"    ⚠ {iss}")
         if not warnings and not failures:
-            print("\n  未发现问题。")
+            empty_hints = report.get("empty_hints", [])
+            if empty_hints:
+                print(f"\n  💡 提示:")
+                for hint in empty_hints:
+                    print(f"    · {hint}")
+            else:
+                print("\n  未发现问题。")
         print()
         return 0 if status == "OK" else (1 if status == "FAIL" else 0)
 
@@ -1549,6 +1555,13 @@ def _db_init(force=False):
         })
         registry_file.write_text(_json.dumps(registry, ensure_ascii=False, indent=2), encoding="utf-8")
 
+    # P0-1 clean3: Migrate all existing slot DBs to include FTS5 tables
+    for i in range(1, 4):
+        slot_id = f"slot_{i:03d}"
+        slot_dir = ws_dir / slot_id
+        if slot_dir.exists():
+            _migrate_slot_fts(slot_dir)
+
     print()
     print("  workspace 初始化完成！")
     print(f"  活跃 slot: slot_001")
@@ -1797,6 +1810,32 @@ def _create_slot_structure(slot_dir: Path):
                     change_reason TEXT DEFAULT '',
                     changed_at TEXT DEFAULT (datetime('now'))
                 );
+
+                -- FTS5 全文检索索引 (v0.6.5-clean3)
+                CREATE VIRTUAL TABLE IF NOT EXISTS novel_chapter_fts USING fts5(
+                    title, content, summary,
+                    content='chapters', content_rowid='id'
+                );
+
+                CREATE VIRTUAL TABLE IF NOT EXISTS novel_chunk_fts USING fts5(
+                    content, summary,
+                    content='chapter_chunks', content_rowid='id'
+                );
+
+                CREATE VIRTUAL TABLE IF NOT EXISTS novel_character_fts USING fts5(
+                    name, alias, identity, personality, tags,
+                    content='characters', content_rowid='id'
+                );
+
+                CREATE VIRTUAL TABLE IF NOT EXISTS novel_world_fts USING fts5(
+                    title, content, tags,
+                    content='worldbuilding', content_rowid='id'
+                );
+
+                CREATE VIRTUAL TABLE IF NOT EXISTS novel_plot_fts USING fts5(
+                    title, content,
+                    content='plot_threads', content_rowid='id'
+                );
             """)
             conn.commit()
         finally:
@@ -1812,6 +1851,42 @@ def _create_slot_structure(slot_dir: Path):
             "created_at": datetime.now().isoformat(),
             "updated_at": datetime.now().isoformat(),
         }, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _migrate_slot_fts(slot_dir: Path) -> bool:
+    """Ensure a slot's novel.db has FTS5 tables (idempotent migration)."""
+    import sqlite3
+    db_path = slot_dir / "novel.db"
+    if not db_path.exists():
+        return False
+    conn = sqlite3.connect(str(db_path))
+    try:
+        conn.executescript("""
+            CREATE VIRTUAL TABLE IF NOT EXISTS novel_chapter_fts USING fts5(
+                title, content, summary,
+                content='chapters', content_rowid='id'
+            );
+            CREATE VIRTUAL TABLE IF NOT EXISTS novel_chunk_fts USING fts5(
+                content, summary,
+                content='chapter_chunks', content_rowid='id'
+            );
+            CREATE VIRTUAL TABLE IF NOT EXISTS novel_character_fts USING fts5(
+                name, alias, identity, personality, tags,
+                content='characters', content_rowid='id'
+            );
+            CREATE VIRTUAL TABLE IF NOT EXISTS novel_world_fts USING fts5(
+                title, content, tags,
+                content='worldbuilding', content_rowid='id'
+            );
+            CREATE VIRTUAL TABLE IF NOT EXISTS novel_plot_fts USING fts5(
+                title, content,
+                content='plot_threads', content_rowid='id'
+            );
+        """)
+        conn.commit()
+        return True
+    finally:
+        conn.close()
 
 
 def _db_list():
@@ -4063,6 +4138,52 @@ def cmd_stability_check():
                 score -= 5
         except Exception as e:
             checks.append(("Story 健康", False, str(e)))
+
+    # 10. v0.6.5-clean3: Slot FTS 完整性检查
+    try:
+        import sqlite3
+        ws_dir = PROJECT_ROOT / "workspace"
+        fts_issues = []
+        for slot_dir in sorted(ws_dir.glob("slot_*")):
+            db_path = slot_dir / "novel.db"
+            if not db_path.exists():
+                continue
+            conn = sqlite3.connect(str(db_path))
+            cur = conn.cursor()
+            cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='novel_chapter_fts'")
+            if not cur.fetchone():
+                fts_issues.append(f"{slot_dir.name} 缺少 FTS5 表")
+            conn.close()
+        fts_ok = len(fts_issues) == 0
+        detail = "所有 slot 有 FTS5" if fts_ok else f"{len(fts_issues)} 个 slot 缺 FTS5"
+        checks.append(("Slot FTS 完整性", fts_ok, detail))
+        if not fts_ok:
+            p0_issues.append(f"Slot DB 缺 FTS5 表: {', '.join(fts_issues)}")
+            score -= 10
+    except Exception as e:
+        checks.append(("Slot FTS 完整性", False, str(e)))
+        p1_issues.append(f"无法检查 slot FTS: {e}")
+        score -= 5
+
+    # 11. v0.6.5-clean3: Demo 无 FTS 警告
+    try:
+        # Run demo in a subprocess and check for FTS warning patterns
+        demo_result = _sp.run(
+            [sys.executable, "novel.py", "demo"],
+            cwd=str(PROJECT_ROOT), timeout=120, capture_output=True, text=True
+        )
+        combined = demo_result.stdout + demo_result.stderr
+        has_fts_warn = "FTS:" in combined and ("no such table" in combined or "WARN" in combined)
+        fts_warn_ok = not has_fts_warn
+        checks.append(("Demo 无 FTS 警告", fts_warn_ok,
+                       "无 FTS 警告" if fts_warn_ok else "发现 FTS 警告"))
+        if has_fts_warn:
+            p0_issues.append("Demo 运行时出现 FTS 表缺失警告")
+            score -= 10
+    except Exception as e:
+        checks.append(("Demo 无 FTS 警告", False, str(e)))
+        p1_issues.append(f"无法运行 demo: {e}")
+        score -= 5
 
     # 输出结果
     for name, ok, detail in checks:

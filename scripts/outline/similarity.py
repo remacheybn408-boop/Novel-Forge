@@ -225,23 +225,23 @@ class OutlineSimilarity:
         chars1 = _extract_chinese_names(content1)
         chars2 = _extract_chinese_names(content2)
         if not chars1 and not chars2:
-            char_overlap = 1.0  # 都没角色名 → 无法判断 → 默认不相似
+            char_overlap = None  # 双方均无角色名 → 不参与评分 (v0.6.5-clean3)
         else:
             union = chars1 | chars2
             intersection = chars1 & chars2
             char_overlap = len(intersection) / len(union) if union else 0.0
-        char_score = char_overlap * 100
+        char_score = char_overlap * 100 if char_overlap is not None else None
 
         # 3. 世界观关键词重叠
         world1 = _extract_world_keywords(content1)
         world2 = _extract_world_keywords(content2)
         if not world1 and not world2:
-            world_overlap = 1.0  # 默认不相似
+            world_overlap = None  # 双方均无世界观关键词 → 不参与评分 (v0.6.5-clean3)
         else:
             union_w = world1 | world2
             intersection_w = world1 & world2
             world_overlap = len(intersection_w) / len(union_w) if union_w else 0.0
-        world_score = world_overlap * 100
+        world_score = world_overlap * 100 if world_overlap is not None else None
 
         # 4. 章节结构相似度
         struct1 = _extract_chapter_structure(content1)
@@ -281,14 +281,20 @@ class OutlineSimilarity:
 
         genre_style_score = (genre_overlap * 0.5 + style_overlap * 0.5) * 100
 
-        # 综合得分
-        raw_score = (
-            title_score * self.WEIGHTS["title"]
-            + char_score * self.WEIGHTS["characters"]
-            + world_score * self.WEIGHTS["worldbuilding"]
-            + struct_score * self.WEIGHTS["chapter_structure"]
-            + genre_style_score * self.WEIGHTS["genre_style"]
-        )
+        # 综合得分 — 跳过 None 维度（双方均无数据），重新归一化权重
+        scores_and_weights = [
+            (title_score, self.WEIGHTS["title"]),
+            (char_score, self.WEIGHTS["characters"]),
+            (world_score, self.WEIGHTS["worldbuilding"]),
+            (struct_score, self.WEIGHTS["chapter_structure"]),
+            (genre_style_score, self.WEIGHTS["genre_style"]),
+        ]
+        active_scores = [(s, w) for s, w in scores_and_weights if s is not None]
+        if active_scores:
+            total_weight = sum(w for _, w in active_scores)
+            raw_score = sum(s * (w / total_weight) for s, w in active_scores)
+        else:
+            raw_score = 50.0  # 所有维度均无数据 → 中性分
         similarity_score = min(round(raw_score), 100)
 
         # 分类
@@ -300,10 +306,12 @@ class OutlineSimilarity:
             recommendation = "new_novel"
         else:
             classification = "uncertain"
-            # 进一步判断
-            if char_overlap >= 0.6 and world_overlap >= 0.5:
+            # 进一步判断 (v0.6.5-clean3: 处理 None 维度)
+            ch_ov = char_overlap if char_overlap is not None else 0.0
+            wo_ov = world_overlap if world_overlap is not None else 0.0
+            if ch_ov >= 0.6 and wo_ov >= 0.5:
                 recommendation = "same_novel"
-            elif char_overlap < 0.2 and world_overlap < 0.2:
+            elif ch_ov < 0.2 and wo_ov < 0.2:
                 recommendation = "new_novel"
             else:
                 recommendation = "ask_user"

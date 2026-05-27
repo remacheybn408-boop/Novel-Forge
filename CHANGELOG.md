@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.6.5 - Archive Jury Multi-DB Release (2026-05-27)
+
+- 18 项 P0/P1/P2 稳定性修复：demo 自动激活大纲、Story Contract 零填充统一、每 slot 独立 novel.db、3 slot 注册一致、大纲智能处理、Agent 陪审团 20 代理、安全删除（回收站）、自然语言菜单、命令别名
+- 新增 Outline 大纲管理系统（添加/列出/切换/对比/回滚/删除）+ 五维度相似度检测
+- 新增 Jury 评审团配置系统（4 模式 + 8 Agent）+ 增强 Doctor 诊断（33 项）
+- 新增 Multi-DB 工作区系统（每 slot 独立 novel.db + registry.json）
+- 296 tests 全通过
+
 ## v0.6.2 - Cross-Platform Release (2026-05-27)
 
 - 版本号统一至 v0.6.2 (VERSION / version.py / novel.py / README.md / config.example.json)

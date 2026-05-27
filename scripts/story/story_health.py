@@ -120,21 +120,31 @@ def check_health(project_root: Path) -> dict:
     else:
         status = "OK"
 
+    # v0.6.5-clean3: Empty project is OK but should hint "未开始" not "未发现问题"
+    contract_count = (
+        len(list((story / "chapters").glob("chapter_*_contract.json")))
+        if (story / "chapters").exists()
+        else 0
+    )
+    commit_count = (
+        len(list((story / "commits").glob("chapter_*_commit.json")))
+        if (story / "commits").exists()
+        else 0
+    )
+    empty_hints = []
+    if contract_count == 0:
+        empty_hints.append("当前还没有合同（未开始写作流程）")
+    if commit_count == 0:
+        empty_hints.append("当前还没有提交（未开始写作流程）")
+
     return {
         "status": status,
         "story_dir": str(story),
         "warnings": warnings,
         "failures": failures,
         "issues": failures + warnings,
-        "contract_count": (
-            len(list((story / "chapters").glob("chapter_*_contract.json")))
-            if (story / "chapters").exists()
-            else 0
-        ),
-        "commit_count": (
-            len(list((story / "commits").glob("chapter_*_commit.json")))
-            if (story / "commits").exists()
-            else 0
-        ),
+        "contract_count": contract_count,
+        "commit_count": commit_count,
         "event_count": event_count,
+        "empty_hints": empty_hints,  # v0.6.5-clean3: 空项目提示
     }
