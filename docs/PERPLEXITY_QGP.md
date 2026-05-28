@@ -105,12 +105,15 @@ QGP 是统计观察层，不替代任何现有门禁，只提供辅助信号。
 - 字符级 3-gram 统计 + 句长/节奏/密度分析。
 - CI 友好，Windows/Linux/Mac 均可运行。
 
-### transformers 后端（可选）
+### transformers 后端（实验项，不属于 v0.6.5 主线）
+
+> **注意：本项目只修小说引擎，不负责本地模型部署。**
+> transformers 后端仅为实验功能，默认关闭且不推荐在生产中使用。详见 `docs/archive/advanced_experimental_qgp.md`（如需要）。
 
 - 需要在 `config.json` 中启用 `qgp.transformers.enabled = true`。
 - 需要指定本地模型路径 `model_path`。
 - 即使启用，QGP 仍然只输出 WARNING，不硬拦。
-- 默认关闭。
+- 默认关闭，v0.6.5 发布包不包含此部分文档。
 
 ## 9. 不允许做的事
 

@@ -325,8 +325,8 @@ def cmd_demo():
         print(f"  [WARN] export returned {export_result.returncode}")
 
     print("\n  Demo complete!")
-    print(f"  Chapter:  {chapter_file}")
-    print(f"  Slot DB:  workspace/slot_001/chapters/{slot_ch_file.name}")
+    print(f"  章节文件：workspace/slot_001/chapters/{slot_ch_file.name}")
+    print(f"  兼容副本：{chapter_file}")
     print(f"  Report:   python novel.py report")
     print(f"  Export:   python novel.py export --slug {slug}")
     print()
@@ -4371,7 +4371,7 @@ def cmd_menu():
 
 def cmd_stability_check(args=None):
     """P2-1: 稳定性自检 — 输出评分和问题清单.
-    v0.6.5-clean4: 默认快速模式，--full 运行 pytest+demo.
+    v0.6.5-clean11: 默认快速模式，--full 运行 pytest+structure check.
     """
     import subprocess as _sp
     import importlib
@@ -4379,7 +4379,7 @@ def cmd_stability_check(args=None):
     full_mode = getattr(args, "full", False)
 
     print("=" * 60)
-    mode_label = "完整模式 (pytest + demo)" if full_mode else "快速模式"
+    mode_label = "完整模式 (pytest + structure check)" if full_mode else "快速模式"
     print(f"  Novel Pipeline - 稳定性自检 ({mode_label})")
     print(f"  版本: {get_version()}")
     print("=" * 60)
@@ -4418,7 +4418,7 @@ def cmd_stability_check(args=None):
     ws_ok = ws_dir.exists() and (ws_dir / "registry.json").exists()
     checks.append(("workspace 初始化", ws_ok, str(ws_dir)))
     if not ws_ok:
-        p1_issues.append("workspace 未初始化，请运行 python novel.py db init")
+        p1_issues.append("workspace 未初始化——首次使用请先运行 python novel.py init（或 python novel.py demo 一键全流程）")
         score -= 5
 
     # 4. 默认 3 slot 完整
@@ -4814,7 +4814,7 @@ def main():
     p_jury.add_argument("chapter_no", nargs="?", help="Chapter number")
     # P2-1: stability-check
     p_sc = sub.add_parser("stability-check", help="运行稳定性自检，输出评分和问题清单")
-    p_sc.add_argument("--full", action="store_true", help="完整模式（含 pytest + demo）")
+    p_sc.add_argument("--full", action="store_true", help="完整模式（pytest + structure check）")
     # v0.6.5-clean7: setup + chapters
     sub.add_parser("setup", help="设置小说文件夹路径")
     sub.add_parser("chapters", help="列出当前作品所有章节")
