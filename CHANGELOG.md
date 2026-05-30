@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.6.5_GUI - 正式推出GUI页面可视化版本 (2026-05-31)
+
+
+- 将程序所有功能封装为FastAPI适配前端开发
+- 本地可视化操作
+
 ## v0.6.5 - Archive Jury Multi-DB Release (2026-05-27)
 
 - 18 项 P0/P1/P2 稳定性修复：demo 自动激活大纲、Story Contract 零填充统一、每 slot 独立 novel.db、3 slot 注册一致、大纲智能处理、Agent 陪审团 20 代理、安全删除（回收站）、自然语言菜单、命令别名
