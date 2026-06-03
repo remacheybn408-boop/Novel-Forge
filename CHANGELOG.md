@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.6.5-fixed.3 - 剧情进度控制器 v2: 复合题材 + 弹性加权 (2026-06-03)
+
+### Added
+- **复合题材支持**：`--genre "xianxia+爽文"` 自动加权合并规则（主题材权重递减）
+- **弹性加权评分**：每类增量按题材权重计算，而非刚性阈值
+- **爽文题材预设**：power_delta 权重 2.0，重视快速升级打脸节奏
+- 8 种题材 pacing 规则完善：default/xianxia/爽文/mystery/suspense/romance/urban/horror/history
+- 增量强度评分：同一类增量有多个关键词时计分更高
+
+### Changed
+- `_load_genre_pacing()` 支持复合题材解析与加权合并
+- `run_plot_pacing_check()` metrics 返回 genres_parsed/weighted_score/progress_ratio
+- `genre_presets.yaml` 每个题材增加 pacing 区块（weighted_deltas + focus_deltas）
+
 ## v0.6.5-fixed.2 - Voice Card System v2: per-novel card sets + outline integration (2026-06-03)
 
 ### Added

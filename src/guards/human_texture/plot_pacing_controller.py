@@ -1,9 +1,10 @@
 """plot_pacing_controller.py — 剧情进度控制器 v0.6.6
 
-5 档进度速度 × 8 类进度增量 × 题材预设。
-检查每章是否产生有效进度，而非仅仅字数达标。
+支持复合题材（如 "xianxia+爽文"），弹性加权评分而非刚硬阈值。
 """
 import re
+import json
+from pathlib import Path
 
 # ── 进度增量定义 ──
 PROGRESS_DELTAS = {
@@ -31,32 +32,85 @@ DELTA_KEYWORDS = {
 
 # ── 5 档进度速度 ──
 PACE_LEVELS = {
-    "breathing":   {"name": "慢章/休整",     "min_deltas": 1, "allow_low_action": True},
-    "setup":       {"name": "铺垫/信息",     "min_deltas": 2, "allow_low_action": False},
-    "normal":      {"name": "正常推进",      "min_deltas": 3, "allow_low_action": False},
-    "accelerate":  {"name": "加速/冲突升级",  "min_deltas": 4, "allow_low_action": False},
-    "climax":      {"name": "高潮/转折",     "min_deltas": 5, "allow_low_action": False},
+    "breathing":   {"name": "慢章/休整",     "min_deltas": 1},
+    "setup":       {"name": "铺垫/信息",     "min_deltas": 2},
+    "normal":      {"name": "正常推进",      "min_deltas": 3},
+    "accelerate":  {"name": "加速/冲突升级",  "min_deltas": 4},
+    "climax":      {"name": "高潮/转折",     "min_deltas": 5},
 }
 
-# ── 题材进度侧重 ──
-GENRE_FOCUS = {
-    "xianxia":  ["conflict_delta", "power_delta", "cost_delta", "hook_delta"],
-    "romance":  ["relationship_delta", "decision_delta", "hook_delta"],
-    "urban":    ["relationship_delta", "event_delta", "decision_delta", "hook_delta"],
-    "suspense": ["clue_delta", "event_delta", "conflict_delta", "hook_delta"],
-    "mystery":  ["clue_delta", "event_delta", "cost_delta", "hook_delta"],
-    "horror":   ["conflict_delta", "cost_delta", "hook_delta", "event_delta"],
-    "history":  ["event_delta", "cost_delta", "decision_delta", "hook_delta"],
-    "default":  ["event_delta", "conflict_delta", "hook_delta", "decision_delta"],
-}
+
+def _load_genre_pacing(genre: str) -> dict:
+    """从 genre_presets.yaml 加载某个题材的 pacing 规则，支持复合题材如 xianxia+爽文."""
+    try:
+        fp = Path(__file__).resolve().parent.parent.parent.parent / "configs" / "human_texture" / "genre_presets.yaml"
+        if not fp.exists():
+            return _default_pacing()
+        import yaml
+        presets = yaml.safe_load(fp.read_text(encoding="utf-8"))
+
+        # 解析复合题材：xianxia+爽文 → ["xianxia", "爽文"]
+        genres = [g.strip() for g in genre.split("+") if g.strip()]
+        if not genres:
+            genres = ["default"]
+
+        weights = []
+        total_weight = 0
+        for i, g in enumerate(genres):
+            preset = presets.get(g, presets.get("default", {}))
+            pacing = preset.get("pacing", {})
+            if pacing:
+                # 主题材权重 1.0，副题材递减
+                w = 1.0 / (i + 1)
+                weights.append((w, pacing))
+                total_weight += w
+
+        if not weights:
+            return _default_pacing()
+
+        # 合并加权 rule
+        merged = _default_pacing()
+        for w, pacing in weights:
+            ratio = w / total_weight
+            merged["min_deltas"] = max(1, round(sum(
+                _default_pacing()["min_deltas"] * (1 - ratio) + pacing.get("min_deltas", 2) * ratio
+                for _ in range(1)
+            )))
+            # 合并加权 delta
+            for delta_key in PROGRESS_DELTAS:
+                base_weight = _default_pacing()["weighted_deltas"].get(delta_key, 1.0)
+                genre_weight = pacing.get("weighted_deltas", {}).get(delta_key, 1.0)
+                merged["weighted_deltas"][delta_key] = round(base_weight * (1 - ratio) + genre_weight * ratio, 2)
+            # 合并 focus_deltas（取并集）
+            merged["focus_deltas"] = list(dict.fromkeys(
+                merged["focus_deltas"] + pacing.get("focus_deltas", [])
+            ))
+
+        return merged
+    except Exception:
+        return _default_pacing()
+
+
+def _default_pacing() -> dict:
+    return {
+        "min_deltas": 2,
+        "weighted_deltas": {k: 1.0 for k in PROGRESS_DELTAS},
+        "focus_deltas": ["event_delta", "conflict_delta", "hook_delta", "decision_delta"],
+    }
 
 
 def detect_deltas(content: str) -> dict:
-    """检测章节文本中有哪些进度增量被触发。"""
+    """检测章节文本中有哪些进度增量被触发（带程度评分）。"""
     results = {}
     for delta, keywords in DELTA_KEYWORDS.items():
         count = sum(1 for kw in keywords if kw in content)
-        results[delta] = {"count": count, "present": count > 0}
+        # 程度评分：1个关键词=1分，3+个=满分
+        intensity = min(count / max(len(keywords) * 0.3, 1), 1.0)
+        results[delta] = {
+            "count": count,
+            "present": count > 0,
+            "intensity": round(intensity, 2),
+        }
     return results
 
 
@@ -66,101 +120,115 @@ def detect_pace_from_content(content: str) -> str:
     action_words = len(re.findall(r'[跑跳冲抓打踢拔砸扔推挡躲闪]', content))
     dialogue_ratio = len(re.findall(r'说|问|答|喊|叫|骂|嘀咕|解释', content)) / max(total_chars, 1)
 
-    # 动作多 → 加速/高潮
     if action_words >= 10:
         return "accelerate" if dialogue_ratio < 0.1 else "climax"
-    # 对话多 → 推进
     if dialogue_ratio > 0.08:
         return "normal"
-    # 动作少对话少 → 慢章
     if action_words <= 3 and dialogue_ratio < 0.04:
         return "breathing"
     return "normal"
 
 
-def check_subject_mismatch(content: str, delta_results: dict) -> list:
-    """检查题材进度侧重是否被满足。"""
-    issues = []
-    for genre, required in GENRE_FOCUS.items():
-        if genre == "default":
-            continue
-        missing = [d for d in required if not delta_results.get(d, {}).get("present")]
-        if missing:
-            issues.append({"genre": genre, "missing": missing})
-    return issues
-
-
 def run_plot_pacing_check(content: str, chapter_no: int = 0,
                           pace_level: str = "normal", genre: str = "default",
                           prev_paces: list = None) -> dict:
-    """剧情进度控制器主入口。"""
+    """剧情进度控制器主入口。支持复合题材：--genre 'xianxia+爽文'"""
     total_chars = len(re.findall(r'[\u4e00-\u9fff]', content))
     if total_chars < 300:
         return {"guard": "plot_pacing_controller", "status": "PASS",
                 "score": 100, "findings": [], "chapter_no": chapter_no}
 
+    # 加载题材规则（支持复合）
+    pacing_rule = _load_genre_pacing(genre)
+    weighted_deltas = pacing_rule["weighted_deltas"]
+    focus_deltas = pacing_rule["focus_deltas"]
+    min_deltas = pacing_rule.get("min_deltas", PACE_LEVELS.get(pace_level, {}).get("min_deltas", 2))
+
     # 检测增量
     deltas = detect_deltas(content)
     actual_pace = detect_pace_from_content(content)
-
-    # 获取等级要求
     pace_cfg = PACE_LEVELS.get(pace_level, PACE_LEVELS["normal"])
-    min_deltas = pace_cfg["min_deltas"]
-    allow_low = pace_cfg["allow_low_action"]
 
     findings = []
     score = 100
 
-    # 1. 检查增量数量
+    # ── 弹性加权评分 ──
+    # 计算加权进度分：每类增量按题材权重加权
+    weighted_score = 0
+    max_possible = sum(weighted_deltas.values())
+    for delta_key, weight in weighted_deltas.items():
+        info = deltas.get(delta_key, {})
+        present = info.get("present", False)
+        intensity = info.get("intensity", 0)
+        if present:
+            weighted_score += weight * max(intensity, 0.5)  # 有触发至少给一半分
+
+    # 弹性进度充足度
+    progress_ratio = weighted_score / max_possible
+    expected = max(0.2, min_deltas / len(PROGRESS_DELTAS))  # 弹性期望值
+
+    if progress_ratio < expected * 0.6:
+        findings.append({
+            "level": "FAIL" if progress_ratio < expected * 0.3 else "WARN",
+            "message": f"进度不足：加权分 {weighted_score:.1f}/{max_possible:.0f} (期望≥{expected:.0%}, 实际{progress_ratio:.0%})",
+            "suggestion": f"复合题材「{genre}」侧重: {', '.join(sorted(weighted_deltas, key=weighted_deltas.get, reverse=True)[:4])}"
+        })
+        score -= 35 if progress_ratio < expected * 0.3 else 20
+
+    # 增量数量检查（弹性）
     present_count = sum(1 for d in deltas.values() if d["present"])
-    genre_focus = GENRE_FOCUS.get(genre, GENRE_FOCUS["default"])
-    focused_present = sum(1 for d in genre_focus if deltas.get(d, {}).get("present"))
-
-    if present_count < min_deltas:
+    if present_count < min_deltas and progress_ratio < 0.4:
         findings.append({
-            "level": "FAIL" if abs(present_count - min_deltas) >= 2 else "WARN",
-            "message": f"进度增量不足：要求 {min_deltas} 类，实际 {present_count} 类 (pace={pace_level})",
-            "suggestion": f"增加 {', '.join(list(PROGRESS_DELTAS.keys())[:3])} 中的一种"
-        })
-        score -= 30 if present_count < min_deltas - 1 else 15
-
-    # 2. 检查题材关键增量
-    if focused_present < max(1, len(genre_focus) // 2):
-        findings.append({
-            "level": "WARN",
-            "message": f"题材「{genre}」关键进度不足：{focused_present}/{len(genre_focus)}",
-            "suggestion": f"题材侧重: {', '.join(genre_focus)}"
+            "level": "WARN" if present_count >= min_deltas - 1 else "FAIL",
+            "message": f"增量类型偏少：{present_count} 类 (建议 ≥{min_deltas}类，复合题材要求更高)",
+            "suggestion": f"当前 pace={pace_level}，增加事件或冲突推进"
         })
         score -= 15
 
-    # 3. 慢章检查：动作少可以，但必须有进度
-    if pace_level in ("breathing", "setup") and allow_low and "relationship_delta" not in [d for d in deltas if deltas[d]["present"]]:
-        findings.append({
-            "level": "INFO" if present_count >= 1 else "WARN",
-            "message": "慢章允许动作少，但需至少一种进度：关系/信息/代价/决定",
-            "suggestion": "当前检测到无关系变化，可加入人物关系或情感决定"
-        })
-        score -= 10
-
-    # 4. 章末钩子检查
-    if "hook_delta" not in [d for d in deltas if deltas[d]["present"]]:
+    # 题材焦点检查（弹性）
+    focused_present = sum(1 for d in focus_deltas if deltas.get(d, {}).get("present"))
+    min_focus = max(1, len(focus_deltas) // 3)
+    if focused_present < min_focus:
         findings.append({
             "level": "WARN",
-            "message": "章末缺少新钩子",
-            "suggestion": "结尾留下未解决的问题或新的外部压力"
+            "message": f"题材「{genre}」关键推进偏少：{focused_present}/{len(focus_deltas)}",
+            "suggestion": f"建议包含: {', '.join(focus_deltas[:4])}"
         })
         score -= 15
 
-    # 5. 进度债检查（连续慢章）
+    # 慢章弹性规则
+    if pace_level in ("breathing", "setup"):
+        rel_present = deltas.get("relationship_delta", {}).get("present", False)
+        dec_present = deltas.get("decision_delta", {}).get("present", False)
+        if not rel_present and not dec_present:
+            findings.append({
+                "level": "INFO" if present_count >= 1 else "WARN",
+                "message": "慢章允许放慢，但需至少一种人物关系或决定推进",
+                "suggestion": "加入人物互动细节或内心决定"
+            })
+            score -= 8
+
+    # 章末钩子（弹性：爽文类钩子权重更高）
+    hook_present = deltas.get("hook_delta", {}).get("present", False)
+    hook_weight = weighted_deltas.get("hook_delta", 1.0)
+    if not hook_present and hook_weight >= 1.0:
+        findings.append({
+            "level": "WARN" if hook_weight >= 1.3 else "INFO",
+            "message": f"章末无新钩子 (该题材钩子权重={hook_weight})",
+            "suggestion": "结尾留下未解决的问题或新压力"
+        })
+        score -= 15 if hook_weight >= 1.3 else 5
+
+    # 连续慢章债
     if prev_paces:
         slow_streak = sum(1 for p in (prev_paces[-3:] if prev_paces else []) if p in ("breathing", "setup"))
         if slow_streak >= 2 and pace_level in ("breathing", "setup"):
             findings.append({
                 "level": "WARN",
-                "message": f"连续 {slow_streak + 1} 章偏慢，建议下一章加速",
-                "suggestion": "慢章可以存在，但不能连续原地踏步"
+                "message": f"连续 {slow_streak + 1} 章偏慢 (含本章)，建议下章加速",
+                "suggestion": "慢章可以存在，但爽文/修仙类不宜超过2章"
             })
-            score -= 10
+            score -= 12
         elif slow_streak >= 2 and pace_level not in ("accelerate", "climax"):
             findings.append({
                 "level": "INFO",
@@ -177,10 +245,17 @@ def run_plot_pacing_check(content: str, chapter_no: int = 0,
         "metrics": {
             "pace_level": pace_level,
             "actual_pace": actual_pace,
+            "genre": genre,
+            "genres_parsed": [g.strip() for g in genre.split("+") if g.strip()],
+            "weighted_score": round(weighted_score, 1),
+            "max_possible": round(max_possible, 1),
+            "progress_ratio": round(progress_ratio, 2),
             "deltas": {k: v["present"] for k, v in deltas.items()},
+            "delta_intensities": {k: v["intensity"] for k, v in deltas.items()},
             "present_count": present_count,
-            "required_min": min_deltas,
-            "genre_focus_hit": f"{focused_present}/{len(genre_focus)}",
+            "focused_present": focused_present,
+            "focus_total": len(focus_deltas),
+            "min_deltas": min_deltas,
         },
         "chapter_no": chapter_no,
     }

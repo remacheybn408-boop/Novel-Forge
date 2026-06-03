@@ -1,5 +1,6 @@
 # genre_texture_presets.yaml — 按题材调阈值 v0.6.6
 # 不同题材节奏不同，不能一刀切。
+# 复合题材: --genre "xianxia+爽文" 自动合并规则
 # 接入: texture check 时传入 --genre 参数
 
 default:
@@ -9,6 +10,13 @@ default:
   voice_diversity_min: 60
   cliche_sentence_max: 8
   emotion_summary_max: 10
+  pacing:
+    min_deltas: 2
+    weighted_deltas:
+      event_delta: 1.0
+      conflict_delta: 1.0
+      hook_delta: 1.0
+    focus_deltas: [event_delta, conflict_delta, hook_delta, decision_delta]
 
 xianxia:
   water_density_min: 65
@@ -17,20 +25,74 @@ xianxia:
   life_texture_min: 55
   cliche_sentence_max: 7
   emotion_summary_max: 8
+  pacing:
+    min_deltas: 3
+    weighted_deltas:
+      power_delta: 1.8
+      conflict_delta: 1.5
+      cost_delta: 1.3
+      event_delta: 1.2
+      hook_delta: 1.0
+      decision_delta: 0.8
+      relationship_delta: 0.5
+      clue_delta: 0.4
+    focus_deltas: [conflict_delta, power_delta, cost_delta, hook_delta]
+
+爽文:
+  water_density_min: 50
+  conflict_pressure_min: 65
+  life_texture_min: 40
+  cliche_sentence_max: 10
+  emotion_summary_max: 12
+  pacing:
+    min_deltas: 4
+    weighted_deltas:
+      power_delta: 2.0
+      event_delta: 1.6
+      conflict_delta: 1.4
+      hook_delta: 1.3
+      decision_delta: 1.0
+      cost_delta: 0.4
+      relationship_delta: 0.3
+      clue_delta: 0.2
+    focus_deltas: [power_delta, event_delta, conflict_delta, hook_delta]
 
 mystery:
   water_density_min: 70
   clue_shift_min: 70
   conflict_pressure_min: 75
-  repeated_emotion_max: 5
   cliche_sentence_max: 5
   emotion_summary_max: 6
+  pacing:
+    min_deltas: 3
+    weighted_deltas:
+      clue_delta: 2.0
+      event_delta: 1.3
+      cost_delta: 1.2
+      hook_delta: 1.0
+      conflict_delta: 0.8
+      decision_delta: 0.7
+      relationship_delta: 0.3
+      power_delta: 0.2
+    focus_deltas: [clue_delta, event_delta, cost_delta, hook_delta]
 
 suspense:
   water_density_min: 70
   conflict_pressure_min: 75
   cliche_sentence_max: 5
   emotion_summary_max: 6
+  pacing:
+    min_deltas: 3
+    weighted_deltas:
+      clue_delta: 1.6
+      event_delta: 1.5
+      conflict_delta: 1.4
+      hook_delta: 1.3
+      decision_delta: 0.8
+      cost_delta: 0.7
+      relationship_delta: 0.4
+      power_delta: 0.3
+    focus_deltas: [clue_delta, event_delta, conflict_delta, hook_delta]
 
 romance:
   water_density_min: 55
@@ -39,6 +101,18 @@ romance:
   life_texture_min: 70
   cliche_sentence_max: 8
   emotion_summary_max: 10
+  pacing:
+    min_deltas: 2
+    weighted_deltas:
+      relationship_delta: 2.0
+      decision_delta: 1.5
+      hook_delta: 1.2
+      event_delta: 1.0
+      conflict_delta: 0.7
+      cost_delta: 0.5
+      power_delta: 0.2
+      clue_delta: 0.2
+    focus_deltas: [relationship_delta, decision_delta, hook_delta]
 
 urban:
   water_density_min: 60
@@ -47,13 +121,37 @@ urban:
   conflict_pressure_min: 60
   cliche_sentence_max: 8
   emotion_summary_max: 10
+  pacing:
+    min_deltas: 2
+    weighted_deltas:
+      relationship_delta: 1.6
+      event_delta: 1.4
+      decision_delta: 1.3
+      hook_delta: 1.0
+      conflict_delta: 0.8
+      cost_delta: 0.6
+      power_delta: 0.3
+      clue_delta: 0.3
+    focus_deltas: [relationship_delta, event_delta, decision_delta, hook_delta]
 
 horror:
   water_density_min: 65
   atmosphere_progress_min: 70
   conflict_pressure_min: 70
-  repeated_scare_phrase_max: 5
   cliche_sentence_max: 6
+  emotion_summary_max: 10
+  pacing:
+    min_deltas: 2
+    weighted_deltas:
+      event_delta: 1.6
+      conflict_delta: 1.5
+      cost_delta: 1.4
+      hook_delta: 1.3
+      clue_delta: 1.0
+      decision_delta: 0.6
+      relationship_delta: 0.4
+      power_delta: 0.3
+    focus_deltas: [conflict_delta, cost_delta, hook_delta, event_delta]
 
 history:
   water_density_min: 60
@@ -61,3 +159,15 @@ history:
   exposition_overload_max: 8
   conflict_pressure_min: 65
   cliche_sentence_max: 7
+  pacing:
+    min_deltas: 2
+    weighted_deltas:
+      event_delta: 1.5
+      cost_delta: 1.4
+      decision_delta: 1.3
+      hook_delta: 1.0
+      conflict_delta: 0.9
+      relationship_delta: 0.7
+      power_delta: 0.5
+      clue_delta: 0.4
+    focus_deltas: [event_delta, cost_delta, decision_delta, hook_delta]
