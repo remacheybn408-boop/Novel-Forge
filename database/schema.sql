@@ -317,3 +317,31 @@ CREATE VIRTUAL TABLE IF NOT EXISTS novel_plot_fts USING fts5(
     title, content,
     content='plot_threads', content_rowid='id'
 );
+
+
+-- 声纹卡表 v0.6.5-fixed.2: 每本小说独立的角色声纹配置
+-- 存在 novel.db 里，切换 slot 时自动跟随
+CREATE TABLE IF NOT EXISTS voice_cards (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    novel_id INTEGER NOT NULL,
+    set_name TEXT NOT NULL DEFAULT 'default',
+    character_name TEXT NOT NULL,
+    sentence_length_preference TEXT DEFAULT '中等',
+    dialect TEXT DEFAULT '',
+    dialect_words TEXT DEFAULT '',
+    common_words TEXT DEFAULT '',
+    forbidden_words TEXT DEFAULT '',
+    emotional_leak_style TEXT DEFAULT '',
+    anger_style TEXT DEFAULT '',
+    lie_style TEXT DEFAULT '',
+    silence_style TEXT DEFAULT '',
+    humor_style TEXT DEFAULT '',
+    relationship_specific_tone TEXT DEFAULT '{}',
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (novel_id) REFERENCES novels(id),
+    UNIQUE(novel_id, set_name, character_name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_voice_cards_novel_set 
+    ON voice_cards(novel_id, set_name);
