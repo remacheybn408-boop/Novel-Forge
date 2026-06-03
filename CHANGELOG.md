@@ -8,9 +8,12 @@
 - **爽文题材预设**：power_delta 权重 2.0，重视快速升级打脸节奏
 - 8 种题材 pacing 规则完善：default/xianxia/爽文/mystery/suspense/romance/urban/horror/history
 - 增量强度评分：同一类增量有多个关键词时计分更高
+- **genre_presets.yaml 全字段复合**：water_density / conflict_pressure / life_texture 等阈值也支持复合题材加权合并
 
 ### Changed
 - `_load_genre_pacing()` 支持复合题材解析与加权合并
+- `_load_genre_preset()` 支持复合题材阈值加权合并
+- `water_density_guard._get_density_threshold()` 改用 YAML 配置 + 复合加权
 - `run_plot_pacing_check()` metrics 返回 genres_parsed/weighted_score/progress_ratio
 - `genre_presets.yaml` 每个题材增加 pacing 区块（weighted_deltas + focus_deltas）
 

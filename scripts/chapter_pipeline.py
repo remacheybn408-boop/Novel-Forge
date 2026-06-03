@@ -1150,7 +1150,7 @@ def main():
     parser.add_argument("--chapters-dir", default=None, help="章节 TXT 目录 (默认: novels/<slug>/第XX卷)")
     parser.add_argument("--db-path", default=None, help="数据库路径 (覆盖 config.json)")
     parser.add_argument("--merge-if-short", action="store_true", help="字数不足时自动合并下一章")
-    parser.add_argument("--genre", default=None, help="题材预设 (默认: config.json default_genre)")\
+    parser.add_argument("--genre", default=None, help="题材预设，支持复合: --genre xianxia+爽文 (默认: config.json default_genre)")\
 
     parser.add_argument("--pace", default=None, help="节奏速度: slow/normal/fast (默认: normal)")
 

@@ -105,16 +105,30 @@ def run_water_density_check(content: str, chapter_no: int = 0,
 
 
 def _get_density_threshold(genre: str, word_count: int) -> tuple:
-    """按题材返回密度阈值 (warn, fail)。"""
-    thresholds = {
-        "xianxia":       (1.0, 0.7),
-        "mystery":       (1.2, 0.8),
-        "suspense":      (1.2, 0.8),
-        "romance":       (0.8, 0.5),
-        "urban":         (0.8, 0.5),
-        "daily":         (0.6, 0.4),
-        "horror":        (1.0, 0.7),
-        "history":       (0.9, 0.6),
-        "default":       (0.8, 0.5),
-    }
-    return thresholds.get(genre, thresholds["default"])
+    """按题材返回密度阈值 (warn, fail)。支持复合题材如 xianxia+爽文。"""
+    try:
+        from pathlib import Path
+        import yaml
+        fp = Path(__file__).resolve().parent.parent.parent.parent / "configs" / "human_texture" / "genre_presets.yaml"
+        if fp.exists():
+            presets = yaml.safe_load(fp.read_text(encoding="utf-8"))
+            genres = [g.strip() for g in genre.split("+") if g.strip()]
+            if not genres:
+                genres = ["default"]
+            total_w = 0
+            weighted_val = 0
+            for i, g in enumerate(genres):
+                p = presets.get(g, presets.get("default", {}))
+                val = p.get("water_density_min")
+                if val is not None:
+                    w = 1.0 / (i + 1)
+                    weighted_val += val * w
+                    total_w += w
+            if total_w > 0:
+                avg = weighted_val / total_w
+                warn_th = max(0.4, avg / 100)
+                fail_th = max(0.2, warn_th - 0.2)
+                return (warn_th, fail_th)
+    except Exception:
+        pass
+    return (0.8, 0.5)

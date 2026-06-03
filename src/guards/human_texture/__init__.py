@@ -14,27 +14,75 @@ from .plot_pacing_controller import run_plot_pacing_check
 
 
 def _load_genre_preset(genre: str = "default") -> dict:
-    """Load genre texture thresholds from YAML, fallback to default."""
+    """Load genre texture thresholds from YAML, support composite genres like 'xianxia+爽文'."""
     try:
         from pathlib import Path
         import yaml
         fp = Path(__file__).resolve().parent.parent.parent.parent / "configs" / "human_texture" / "genre_presets.yaml"
-        if fp.exists():
-            presets = yaml.safe_load(fp.read_text(encoding="utf-8"))
-            return presets.get(genre, presets.get("default", {}))
+        if not fp.exists():
+            return {}
+        presets = yaml.safe_load(fp.read_text(encoding="utf-8"))
+
+        # Parse composite genres: "xianxia+爽文" -> ["xianxia", "爽文"]
+        genres = [g.strip() for g in genre.split("+") if g.strip()]
+        if not genres:
+            genres = ["default"]
+
+        # Single genre: direct lookup
+        if len(genres) == 1:
+            return presets.get(genres[0], presets.get("default", {}))
+
+        # Composite genres: weighted merge
+        weighted = []
+        total_w = 0
+        for i, g in enumerate(genres):
+            p = presets.get(g, presets.get("default", {}))
+            if p:
+                w = 1.0 / (i + 1)
+                weighted.append((w, p))
+                total_w += w
+
+        if not weighted:
+            return presets.get("default", {})
+
+        # Merge all keys
+        all_keys = set()
+        for _, p in weighted:
+            all_keys.update(p.keys())
+
+        merged = {}
+        for key in all_keys:
+            if key == "pacing":
+                continue  # handled by plot_pacing_controller
+            items = [(w / total_w, p.get(key)) for w, p in weighted if p.get(key) is not None]
+            if not items:
+                continue
+            if isinstance(items[0][1], (int, float)):
+                merged[key] = round(sum(ratio * val for ratio, val in items), 1)
+            elif isinstance(items[0][1], list):
+                seen = set()
+                result = []
+                for _, v in items:
+                    for item in v:
+                        if item not in seen:
+                            result.append(item)
+                            seen.add(item)
+                merged[key] = result
+            else:
+                merged[key] = items[0][1]
+
+        return merged
     except Exception:
-        pass
-    return {}
+        return {}
 
 
 def run_human_texture_guards(content: str, chapter_no: int = 0,
                               project_root=None, task_card: str = "",
                               genre: str = "default", pace_level: str = "normal",
                               prev_paces: list = None) -> dict:
-    """运行全部人工味质量层检测，返回综合报告。"""
+    """Run all human texture quality guards."""
     results = []
 
-    # 各 guard 独立运行
     results.append(run_rhythm_check(content, chapter_no))
     results.append(run_emotion_summary_check(content, chapter_no))
     results.append(run_conflict_check(content, chapter_no))
@@ -47,10 +95,10 @@ def run_human_texture_guards(content: str, chapter_no: int = 0,
     if task_card:
         results.append(run_prompt_check(task_card, chapter_no))
 
-    # 加载题材预设
+    # Load genre preset (composite-aware)
     preset = _load_genre_preset(genre)
 
-    # 综合评分（权重按题材调整）
+    # Composite score
     scores = [r.get("score", 100) for r in results]
     overall = sum(scores) // len(scores) if scores else 100
     worst = min(scores)
