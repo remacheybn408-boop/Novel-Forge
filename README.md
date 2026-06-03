@@ -1,16 +1,16 @@
-# Novel Forge — 小说引擎 v0.6.5-fixed
+# Novel Forge — 小说引擎 v0.6.6
 
 [![Test](https://github.com/bijinfeng/novel-pipeline-write-engine/actions/workflows/test.yml/badge.svg?branch=master)](https://github.com/bijinfeng/novel-pipeline-write-engine/actions/workflows/test.yml)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT%20OR%20GPL--3.0-green)
-![Version](https://img.shields.io/badge/version-v0.6.5-fixed-orange)
+![Version](https://img.shields.io/badge/version-v0.6.6-orange)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
 
 轻量小说工程化写作流水线——专注长篇小说的连续性、角色口吻一致性、AI 腔检测、防幻觉、写前任务卡和写后质量报告。
 
 ---
 
-## v0.6.5-fixed 核心能力
+## v0.6.6 核心能力
 
 | # | 能力 | 说明 |
 |---|------|------|

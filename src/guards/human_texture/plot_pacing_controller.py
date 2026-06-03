@@ -31,6 +31,20 @@ DELTA_KEYWORDS = {
 }
 
 # ── 5 档进度速度 ──
+# pace 别名映射
+PACE_ALIASES = {
+    "slow": "breathing",
+    "relaxed": "setup",
+    "fast": "accelerate",
+    "intense": "climax",
+}
+
+
+def _resolve_pace(pace: str) -> str:
+    """Resolve pace aliases (slow→breathing, fast→accelerate)."""
+    return PACE_ALIASES.get(pace, pace)
+
+
 PACE_LEVELS = {
     "breathing":   {"name": "慢章/休整",     "min_deltas": 1},
     "setup":       {"name": "铺垫/信息",     "min_deltas": 2},
@@ -164,6 +178,7 @@ def run_plot_pacing_check(content: str, chapter_no: int = 0,
     # 检测增量
     deltas = detect_deltas(content)
     actual_pace = detect_pace_from_content(content)
+    pace_level = _resolve_pace(pace_level)
     pace_cfg = PACE_LEVELS.get(pace_level, PACE_LEVELS["normal"])
 
     findings = []

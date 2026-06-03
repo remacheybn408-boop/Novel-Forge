@@ -150,14 +150,12 @@ def main():
                 except Exception:
                     pass
                 nonexec.append(s)
-        ok_exec = len(nonexec) == 0
         if nonexec:
-            print(f"  [WARN] Shell scripts executable  — not executable: {', '.join(nonexec)} (but can run via bash script.sh)")
+            print(f"  [WARN] Shell scripts executable  — not executable: {', '.join(nonexec)} (can run via bash script.sh)")
+            CHECKS.append({"name": "Shell scripts executable", "ok": True, "detail": f"{len(nonexec)} scripts not executable (runnable via bash)"})
         else:
-            detail_exec = "all executable" if not os.access(str(PROJECT_ROOT / expected_sh[0]), os.X_OK) else "all executable"
-            print(f"  [PASS] Shell scripts executable  — {detail_exec}")
-        # Don't register as a failure — this is a platform limitation, not a code issue
-        CHECKS.append({"name": "Shell scripts executable", "ok": True, "detail": "permission check skipped (bash-runnable)"})
+            print(f"  [PASS] Shell scripts executable  — all executable")
+            CHECKS.append({"name": "Shell scripts executable", "ok": True, "detail": "all executable"})
     else:
         check("Shell scripts executable", False, "skipped — missing scripts")
 

@@ -1,4 +1,0 @@
-# API dependencies for Novel Pipeline Write Engine
-fastapi>=0.100.0
-uvicorn[standard]>=0.23.0
-python-multipart>=0.0.6
