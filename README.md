@@ -1,16 +1,16 @@
-# Novel Forge — 小说引擎 v0.6.5
+# Novel Forge — 小说引擎 v0.6.5-fixed
 
 [![Test](https://github.com/bijinfeng/novel-pipeline-write-engine/actions/workflows/test.yml/badge.svg?branch=master)](https://github.com/bijinfeng/novel-pipeline-write-engine/actions/workflows/test.yml)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT%20OR%20GPL--3.0-green)
-![Version](https://img.shields.io/badge/version-v0.6.5-orange)
+![Version](https://img.shields.io/badge/version-v0.6.5-fixed-orange)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
 
 轻量小说工程化写作流水线——专注长篇小说的连续性、角色口吻一致性、AI 腔检测、防幻觉、写前任务卡和写后质量报告。
 
 ---
 
-## v0.6.5 核心能力
+## v0.6.5-fixed 核心能力
 
 | # | 能力 | 说明 |
 |---|------|------|
@@ -21,6 +21,8 @@
 | 5 | **普通用户菜单** | 终端输入 `python novel.py menu` 即可进入交互菜单，不要求记命令 |
 | 6 | **三端适配** | Windows / macOS / Linux，Shell 脚本 + 跨平台路径检测 |
 | 7 | **发布稳定性检查** | `stability-check --full` 一键验收，覆盖版本号、pytest、demo 全流程、cross-platform |
+| 8 | **人工味质量层 (Human Texture)** | 8 个质量 guard 自动运行：水文检测、剧情进度控制、陈词滥句、冲突压力、情绪总结、生活质感、节奏、声音多样性 |
+| 9 | **题材阈值预设** | 9 种题材独立阈值，`--genre xianxia --pace slow` 参数调优 |
 
 ---
 

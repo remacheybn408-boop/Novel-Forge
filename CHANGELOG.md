@@ -1,7 +1,60 @@
 # Changelog
 
+## v0.6.5-fixed - Human Texture Quality Layer Integration (2026-06-03)
+
+### Added
+- **Human Texture 人工味质量层** — 8 个质量 guard 集成到 post 流水线自动运行：
+  - `water_density_guard` 水文密度检测
+  - `plot_pacing_controller` 剧情进度控制器（5 档速度 × 8 类进度增量 × 题材预设）
+  - `cliche_sentence_guard` 陈词滥句检测
+  - `conflict_pressure_guard` 冲突压力检测
+  - `emotion_summary_guard` 情绪总结合理性
+  - `life_texture_guard` 生活质感检测
+  - `prompt_specificity_guard` 提示词具体性
+  - `rhythm_guard` 节奏控制
+  - `voice_diversity_guard` 声音多样性
+- **题材阈值预设** `configs/human_texture/genre_presets.yaml`：9 种题材独立阈值（xianxia/mystery/suspense/romance/urban/horror/history + default）
+- **CLI 参数扩展**：`python novel.py post 1 --genre xianxia --pace slow`
+- **单独调用命令**：`python novel.py texture check <章节号>` 查看详细报告
+- `requirements.txt` 核心依赖文件
+
+### Fixed
+- 一键启动.bat UTF-8 编码修复，去除 Node.js 前端依赖
+- CLAUDE.md / AGENTS.md guard 数量 23→21（与实际注册一致）
+- GitHub URL 统一到 `remacheybn408-boop/Novel-Forge`
+- pyproject.toml build backend 从 `setuptools.backends._legacy` 修复为 `setuptools.build_meta`
+
+### Changed
+- post 流程完成步骤增加 human_texture 质量报告输出
+- 报告文件保存到 `exports/reports/chapter_XXX_texture_report.json`
+
 ## v0.6.5_GUI - 正式推出GUI页面可视化版本 (2026-05-31)
 
+### Added
+- **Human Texture 人工味质量层** — 8 个质量 guard 集成到 post 流水线自动运行：
+  - `water_density_guard` 水文密度检测
+  - `plot_pacing_controller` 剧情进度控制器（5 档速度 × 8 类进度增量 × 题材预设）
+  - `cliche_sentence_guard` 陈词滥句检测
+  - `conflict_pressure_guard` 冲突压力检测
+  - `emotion_summary_guard` 情绪总结合理性
+  - `life_texture_guard` 生活质感检测
+  - `prompt_specificity_guard` 提示词具体性
+  - `rhythm_guard` 节奏控制
+  - `voice_diversity_guard` 声音多样性
+- **题材阈值预设** `configs/human_texture/genre_presets.yaml`：9 种题材独立阈值（xianxia/mystery/suspense/romance/urban/horror/history + default）
+- **CLI 参数扩展**：`python novel.py post 1 --genre xianxia --pace slow`
+- **单独调用命令**：`python novel.py texture check <章节号>` 查看详细报告
+- `requirements.txt` 核心依赖文件
+
+### Fixed
+- 一键启动.bat UTF-8 编码修复，去除 Node.js 前端依赖
+- CLAUDE.md / AGENTS.md guard 数量 23→21（与实际注册一致）
+- GitHub URL 统一到 `remacheybn408-boop/Novel-Forge`
+- pyproject.toml build backend 从 `setuptools.backends._legacy` 修复为 `setuptools.build_meta`
+
+### Changed
+- post 流程完成步骤增加 human_texture 质量报告输出
+- 报告文件保存到 `exports/reports/chapter_XXX_texture_report.json`
 
 - 将程序所有功能封装为FastAPI适配前端开发
 - 本地可视化操作
