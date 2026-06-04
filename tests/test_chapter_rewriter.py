@@ -2,8 +2,7 @@
 """Test chapter_rewriter — 章节改稿器测试"""
 import sys, json, tempfile, os
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
-from chapter_rewriter import (
+from scripts.chapter_rewriter import (
     rewrite_paragraphs, generate_rewrite_log,
     split_paragraphs, _apply_revision
 )

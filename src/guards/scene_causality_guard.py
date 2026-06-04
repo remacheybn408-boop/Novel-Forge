@@ -15,7 +15,7 @@ scene_causality_guard.py — 场景因果链门禁 v0.4.0
 import re, json, sys, argparse
 from pathlib import Path
 from typing import List, Dict, Tuple
-from consequence_lexicon import (
+from scripts.consequence_lexicon import (
     find_all_consequences,
     count_visible_consequences,
     has_minimum_visible_cost,

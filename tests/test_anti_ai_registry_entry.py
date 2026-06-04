@@ -1,9 +1,6 @@
 """test_anti_ai_registry_entry.py — 确认 anti_ai_guard 从 registry 正确调用到 anti_ai_patterns"""
 
-import sys
-sys.path.insert(0, "scripts")
-
-from guard_registry import run_single_guard
+from scripts.guard_registry import run_single_guard
 
 
 def test_anti_ai_registry_entry_uses_patterns_module():

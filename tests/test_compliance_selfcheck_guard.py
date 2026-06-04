@@ -2,7 +2,6 @@
 """Test compliance_selfcheck_guard — 投稿合规自查门禁测试"""
 import sys, json
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
 from src.guards.compliance_selfcheck_guard import (
     build_report,

@@ -2,7 +2,6 @@
 """Test dialogue_naturalness_guard — 对白自然度门禁测试"""
 import sys, json
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
 from src.guards.dialogue_naturalness_guard import (
     build_report,

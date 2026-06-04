@@ -18,7 +18,6 @@ from typing import Optional
 # 将 scripts 目录加入 path 以便导入 fts_health
 _SCRIPT_DIR = Path(__file__).resolve().parent.parent
 if str(_SCRIPT_DIR) not in sys.path:
-    sys.path.insert(0, str(_SCRIPT_DIR))
 
 from fts_health import safe_fts_search
 

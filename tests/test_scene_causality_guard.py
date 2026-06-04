@@ -2,7 +2,6 @@
 """Test scene_causality_guard — 场景因果链门禁测试"""
 import sys, json
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
 from src.guards.scene_causality_guard import (
     detect_cause,

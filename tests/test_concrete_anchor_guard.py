@@ -2,7 +2,6 @@
 """Test concrete_anchor_guard — 具体锚点门禁测试"""
 import sys, json
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
 from src.guards.concrete_anchor_guard import (
     detect_object_anchors,

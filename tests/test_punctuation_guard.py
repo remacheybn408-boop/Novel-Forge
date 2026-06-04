@@ -1,8 +1,5 @@
-#!/usr/bin/env python3
 """test_punctuation_guard.py — 标点节奏门禁测试"""
 
-import sys, os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'scripts', 'guards'))
 from src.guards.punctuation_guard import run_punctuation_check
 
 

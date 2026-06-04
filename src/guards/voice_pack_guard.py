@@ -18,11 +18,6 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-# Add scripts to path for character_voice_guard import
-_script_dir = Path(__file__).resolve().parent.parent.parent / "scripts"
-if str(_script_dir) not in sys.path:
-    sys.path.insert(0, str(_script_dir))
-
 from src.guards.character_voice_guard import run_character_voice_check
 
 

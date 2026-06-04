@@ -15,7 +15,6 @@ import json
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
 from src.guards.character_voice_guard import run_character_voice_check
 

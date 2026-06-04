@@ -30,7 +30,7 @@ import argparse
 from pathlib import Path
 from datetime import datetime
 try:
-    from config_utils import normalize_config
+    from scripts.config_utils import normalize_config
 except Exception:
     def normalize_config(cfg): return cfg
 

@@ -4,7 +4,6 @@ test_agent_run_guard.py — Quality Guard 测试 (V5: chapter_type不强制下�
 import pytest, json, tempfile, sys, os, io, contextlib, importlib
 from pathlib import Path
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'scripts'))
 
 GUARD_SCRIPT = Path(__file__).parent.parent / "scripts" / "agent_run_guard.py"
 
@@ -34,7 +33,7 @@ def _run_guard(report_dict):
     rc = 0
     try:
         sys.argv = [str(GUARD_SCRIPT), tmp]
-        guard_mod = importlib.import_module("agent_run_guard")
+        guard_mod = importlib.import_module("scripts.agent_run_guard")
         with contextlib.redirect_stdout(buf):
             try:
                 guard_mod.main()

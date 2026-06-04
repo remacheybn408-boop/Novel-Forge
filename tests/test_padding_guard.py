@@ -2,7 +2,6 @@
 test_padding_guard.py — 防水文证据门禁测试
 """
 import pytest, json, sys, os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'scripts'))
 from src.guards.padding_guard import run_padding_check
 
 

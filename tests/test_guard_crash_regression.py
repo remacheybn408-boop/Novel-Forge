@@ -1,9 +1,6 @@
 """test_guard_crash_regression.py — 确保所有 standard mode guards 不 crash"""
 
-import sys
-sys.path.insert(0, "scripts")
-
-from guard_registry import run_standard_guards
+from scripts.guard_registry import run_standard_guards
 
 SAMPLE = """他从水里爬出来，胸口一阵肺痉挛，喉咙里全是铁锈味。
 咳出来的水沫子挂在下巴上，右手还在抖。

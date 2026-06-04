@@ -4,9 +4,8 @@ test_skeleton_flow.py — Phase 2 端到端测试
 import pytest, sqlite3, tempfile, os, sys, json
 from pathlib import Path
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'scripts'))
-from chapter_pipeline import App, DEFAULT_CONFIG
-import init_db
+from scripts.chapter_pipeline import App, DEFAULT_CONFIG
+from scripts import init_db
 
 
 @pytest.fixture
@@ -70,7 +69,7 @@ class TestSkeletonPre:
     def test_pre_reads_volume_plan(self, db_and_app):
         """pre should display volume plan info."""
         db_path, app = db_and_app
-        import chapter_pipeline as cp
+        import scripts.chapter_pipeline as cp
         cp.app = app
         # This will print to stdout - we just verify no exception
         result = cp.pre_write_gate(1, "normal")
@@ -80,7 +79,7 @@ class TestSkeletonPre:
     def test_pre_reads_chapter_plan(self, db_and_app):
         """pre should read chapter skeleton."""
         db_path, app = db_and_app
-        import chapter_pipeline as cp
+        import scripts.chapter_pipeline as cp
         cp.app = app
         result = cp.pre_write_gate(5, "normal")
         assert result is not None
@@ -88,7 +87,7 @@ class TestSkeletonPre:
     def test_pre_chapter_no_skeleton(self, db_and_app):
         """Chapter 30 has no skeleton - should not crash."""
         db_path, app = db_and_app
-        import chapter_pipeline as cp
+        import scripts.chapter_pipeline as cp
         cp.app = app
         result = cp.pre_write_gate(30, "normal")
         assert result is not None
@@ -99,7 +98,7 @@ class TestVolumeSequenceCheck:
         """Pre on volume 2 should warn if volume 1 has no chapters."""
         db_path, app = db_and_app
         app.volume_no = 2
-        import chapter_pipeline as cp
+        import scripts.chapter_pipeline as cp
         cp.app = app
         # Should not crash, just warn
         result = cp.pre_write_gate(1, "normal")
@@ -135,7 +134,7 @@ class TestChapterPlansSync:
         assert before[0] == "planned"
 
         # Run ingest
-        import chapter_pipeline as cp
+        import scripts.chapter_pipeline as cp
         cp.app = app
         result = cp.ingest(1, "normal")
         assert result is not None

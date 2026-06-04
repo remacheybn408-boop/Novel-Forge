@@ -47,7 +47,7 @@ DEFAULT_CONFIG = {
 def run_suggest_mode(chapter_path: str, report_path: str,
                      out_dir: str, config: dict) -> dict:
     """suggest 模式: 只生成 revision_tasks.json"""
-    from revision_task_generator import generate_tasks
+    from scripts.revision_task_generator import generate_tasks
 
     chapter = Path(chapter_path).read_text(encoding="utf-8")
     if not Path(report_path).exists():
@@ -74,7 +74,7 @@ def run_controlled_mode(chapter_path: str, report_path: str,
     out.mkdir(parents=True, exist_ok=True)
 
     # Step 1: 生成修改任务
-    from revision_task_generator import generate_tasks
+    from scripts.revision_task_generator import generate_tasks
     chapter = Path(chapter_path).read_text(encoding="utf-8")
     report = json.loads(Path(report_path).read_text(encoding="utf-8"))
     tasks = generate_tasks(
@@ -89,7 +89,7 @@ def run_controlled_mode(chapter_path: str, report_path: str,
         return {"status": "OK", "message": "没有高置信度任务，跳过改稿。"}
 
     # Step 2: 规划补丁
-    from patch_planner import build_patch_plan
+    from scripts.patch_planner import build_patch_plan
     plan = build_patch_plan(
         chapter, tasks,
         config.get("max_changed_paragraph_ratio", 0.35))
@@ -98,8 +98,8 @@ def run_controlled_mode(chapter_path: str, report_path: str,
     print(f"  [2/5] patch_plan: {len(plan['patch_plan'])} ops, {plan['changed_ratio']:.0%}")
 
     # Step 3: 生成 revised draft
-    from chapter_rewriter import rewrite_paragraphs, generate_rewrite_log
-    from chapter_rewriter import split_paragraphs
+    from scripts.chapter_rewriter import rewrite_paragraphs, generate_rewrite_log
+    from scripts.chapter_rewriter import split_paragraphs
     paras = split_paragraphs(chapter)
     new_paras, changed_ranges = rewrite_paragraphs(paras, plan, tasks)
     revised_text = "\n\n".join(new_paras)
@@ -116,7 +116,7 @@ def run_controlled_mode(chapter_path: str, report_path: str,
         rerun_dir.mkdir(exist_ok=True)
         # 只跑关键门禁
         try:
-            from guard_orchestrator import run_orchestrated
+            from scripts.guard_orchestrator import run_orchestrated
             rerun = run_orchestrated(
                 revised_text, tasks.get("chapter_no", 0),
                 mode="draft", reports_dir=str(rerun_dir))
@@ -133,7 +133,7 @@ def run_controlled_mode(chapter_path: str, report_path: str,
             print(f"  [4/5] rerun guards: skipped ({e})")
 
     # Step 5: diff report
-    from revision_diff_report import generate_diff_report
+    from scripts.revision_diff_report import generate_diff_report
     diff = generate_diff_report(chapter, revised_text, log, tasks.get("tasks", []))
     (out / "revision_diff_report.json").write_text(
         json.dumps(diff, ensure_ascii=False, indent=2), encoding="utf-8")

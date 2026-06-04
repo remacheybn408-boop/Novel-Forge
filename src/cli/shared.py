@@ -1,21 +1,13 @@
 #!/usr/bin/env python3
 """src/cli/shared.py — Shared helpers (constants, paths, config loading) for novel-pipeline-write-engine v0.6.5"""
 
-import sys
 import json
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 SCRIPTS_DIR = PROJECT_ROOT / "scripts"
-SRC_GUARDS_DIR = PROJECT_ROOT / "src" / "guards"
 
-# Ensure scripts dir is importable
-if str(SCRIPTS_DIR) not in sys.path:
-    sys.path.insert(0, str(SCRIPTS_DIR))
-if str(SRC_GUARDS_DIR) not in sys.path:
-    sys.path.insert(0, str(SRC_GUARDS_DIR))
-
-from config_utils import normalize_config, load_json_config, resolve_path
+from scripts.config_utils import normalize_config, load_json_config, resolve_path
 
 def _load_project_config() -> dict:
     """Load config.json/config.example.json using the shared compatibility layer."""

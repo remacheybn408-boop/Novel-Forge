@@ -2,10 +2,9 @@
 test_schema_init.py — Schema 初始化测试
 """
 import pytest
-import sys, os, tempfile
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'scripts'))
+import tempfile
 
-import init_db
+from scripts import init_db
 from pathlib import Path
 
 

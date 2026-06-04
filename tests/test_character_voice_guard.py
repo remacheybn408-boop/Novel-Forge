@@ -2,13 +2,12 @@
 """test_character_voice_guard — 角色口吻门禁测试 v0.4.5"""
 import sys, json
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
 from src.guards.character_voice_guard import (
     run_character_voice_check,
     _match_pack_markers,
 )
-from voice_profile_loader import _load_packs_from_files
+from scripts.voice_profile_loader import _load_packs_from_files
 
 
 def _packs():

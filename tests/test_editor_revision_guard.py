@@ -2,7 +2,6 @@
 """Test editor_revision_guard — 拟人审稿痕迹门禁测试"""
 import sys, json
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
 from src.guards.editor_revision_guard import (
     detect_over_explained,

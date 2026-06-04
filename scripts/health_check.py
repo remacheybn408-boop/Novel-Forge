@@ -26,12 +26,6 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent
 
-# Ensure src is importable
-_src_path = PROJECT_ROOT
-if str(_src_path) not in sys.path:
-    sys.path.insert(0, str(_src_path))
-
-
 # ═══════════════════════════════════════════════════
 # Option 1: Thin wrapper (delegates to commands_status)
 # ═══════════════════════════════════════════════════
@@ -229,11 +223,8 @@ def check_demo_project() -> bool:
 
 def check_guard_registry() -> bool:
     """Guard registry importable and valid."""
-    scripts_dir = SCRIPT_DIR
-    if str(scripts_dir) not in sys.path:
-        sys.path.insert(0, str(scripts_dir))
     try:
-        from guard_registry import GUARD_LEVELS, MODE_GUARDS
+        from scripts.guard_registry import GUARD_LEVELS, MODE_GUARDS
         guard_count = len(GUARD_LEVELS)
         mode_count = len(MODE_GUARDS)
         print(f"  [OK] Guard registry — {guard_count} guards, {mode_count} modes")

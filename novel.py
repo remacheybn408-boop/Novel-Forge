@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-novel.py — CLI entry point v0.6.5
+novel.py — CLI entry point v0.6.7
 
 Thin CLI parser. All command implementations live in src/cli/.
 """
@@ -10,24 +10,21 @@ from pathlib import Path
 
 # ── Path setup ──────────────────────────────────────────────
 PROJECT_ROOT = Path(__file__).parent
-SCRIPTS_DIR = PROJECT_ROOT / "scripts"
-SRC_GUARDS_DIR = PROJECT_ROOT / "src" / "guards"
-
-if str(SCRIPTS_DIR) not in sys.path:
-    sys.path.insert(0, str(SCRIPTS_DIR))
-if str(SRC_GUARDS_DIR) not in sys.path:
-    sys.path.insert(0, str(SRC_GUARDS_DIR))
 
 # ── Import command modules ──────────────────────────────────
 from version import get_version
 from src.cli.shared import _load_project_config
 from src.cli.commands_status import main as status_main
 from src.cli.commands_core import (
-    cmd_demo, cmd_report, cmd_guards, cmd_check, cmd_wc, cmd_init,
-    cmd_pre, cmd_post, cmd_review, cmd_export,
-    cmd_agents, cmd_rag, cmd_story, cmd_query, cmd_learn, cmd_board,
-    cmd_genre, cmd_style, cmd_stability_check,
+    cmd_report, cmd_guards, cmd_check, cmd_wc, cmd_init,
+    cmd_genre, cmd_style,
 )
+from src.cli.commands_demo import cmd_demo
+from src.cli.commands_pipeline import cmd_pre, cmd_post, cmd_review, cmd_export
+from src.cli.commands_agents import cmd_agents
+from src.cli.commands_memory import cmd_rag, cmd_query, cmd_learn
+from src.cli.commands_story import cmd_story
+from src.cli.commands_diagnostic import cmd_board, cmd_stability_check
 from src.cli.commands_menu import (
     cmd_scc_help, cmd_menu_show, cmd_menu_text, cmd_menu,
     cmd_chapters, cmd_setup,

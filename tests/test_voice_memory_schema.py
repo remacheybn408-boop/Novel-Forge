@@ -2,9 +2,8 @@
 
 import sqlite3, tempfile, os, sys
 from pathlib import Path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from init_db import init_db, find_schema, find_migrations
+from scripts.init_db import init_db, find_schema, find_migrations
 
 
 def test_voice_tables_exist():

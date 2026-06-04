@@ -22,7 +22,6 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 DEFAULT_SLUG = "demo_novel"
 DEFAULT_CONFIG = PROJECT_ROOT / "config.json"
 from pathlib import Path; import sys; _vdir = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(_vdir))
 from version import get_version; VERSION = get_version()
 PROJECT_NAME = "Novel Forge"
 

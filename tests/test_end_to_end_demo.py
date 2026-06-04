@@ -4,9 +4,8 @@ test_end_to_end_demo.py — v0.3.0 端到端流程测试
 import pytest, sqlite3, tempfile, os, sys, json, shutil
 from pathlib import Path
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'scripts'))
-import init_db
-from chapter_pipeline import App, DEFAULT_CONFIG
+from scripts import init_db
+from scripts.chapter_pipeline import App, DEFAULT_CONFIG
 
 
 def _make_chapter_text(chapter_no, title, word_target=3700):
@@ -86,7 +85,7 @@ def e2e_env():
 class TestEndToEndFlow:
     def test_full_ch1_cycle(self, e2e_env):
         """Complete ch1: pre → write TXT → post → verify brief + DB state"""
-        import chapter_pipeline as cp
+        import scripts.chapter_pipeline as cp
         env = e2e_env
         app = env["app"]
         cp.app = app
@@ -138,7 +137,7 @@ class TestEndToEndFlow:
 
     def test_volume_post_generates_report(self, e2e_env):
         """Volume post should create volume_report.json"""
-        import chapter_pipeline as cp
+        import scripts.chapter_pipeline as cp
         env = e2e_env
         app = env["app"]
         cp.app = app

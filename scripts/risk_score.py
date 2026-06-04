@@ -21,15 +21,6 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-# ── Ensure project root is importable ──
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent
-if str(_PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(_PROJECT_ROOT))
-
-SCRIPT_DIR = Path(__file__).resolve().parent
-if str(SCRIPT_DIR) not in sys.path:
-    sys.path.insert(0, str(SCRIPT_DIR))
-
 logger = logging.getLogger(__name__)
 
 # ═══════════════════════════════════════════════════
@@ -114,7 +105,7 @@ _AI_CLICHE_PATTERNS = [
 def _score_ai_style(content: str) -> float:
     """Heuristic AI-style detection via pattern matching."""
     try:
-        from anti_ai_patterns import run_anti_ai_check
+        from scripts.anti_ai_patterns import run_anti_ai_check
         result = run_anti_ai_check(content)
         if isinstance(result, dict):
             flags = result.get("flags", [])

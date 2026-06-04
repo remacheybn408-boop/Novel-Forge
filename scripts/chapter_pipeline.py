@@ -35,10 +35,8 @@ from datetime import datetime
 
 # ── Ensure project root is importable (needed for src.guards.*) ──
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(_PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(_PROJECT_ROOT))
 try:
-    from config_utils import normalize_config
+    from scripts.config_utils import normalize_config
 except Exception:
     def normalize_config(cfg): return cfg
 
@@ -1199,7 +1197,7 @@ def main():
 
         # v0.4.5: FTS5 health check before post
         try:
-            from fts_health import ensure_fts_healthy
+            from scripts.fts_health import ensure_fts_healthy
             fts_result = ensure_fts_healthy(cfg)
             if fts_result["action"] == "repaired":
                 print(f"  [FTS] Repaired: {fts_result.get('repair',{}).get('repaired_count',0)} tables")
@@ -1345,7 +1343,7 @@ def main():
         # v0.4.5: Load voice context for character_voice_guard
         extra_context = {}
         try:
-            from voice_profile_loader import load_voice_context
+            from scripts.voice_profile_loader import load_voice_context
             voice_context = load_voice_context(cfg, app.novel_slug)
             if voice_context["enabled"]:
                 extra_context["voice_context"] = voice_context
@@ -1354,7 +1352,7 @@ def main():
             pass
 
         try:
-            from guard_orchestrator import run_orchestrated
+            from scripts.guard_orchestrator import run_orchestrated
             orch_report = run_orchestrated(
                 content, chapter_no, mode=orchestrator_mode,
                 config=cfg, reports_dir=str(ce_reports_dir),
@@ -1412,7 +1410,7 @@ def main():
 
             # ── 去重 + Top 5 修改任务 ──
             if quality_policy.get("deduplicate_warnings", True):
-                from report_deduplicator import deduplicate_warnings, get_top_revision_tasks
+                from scripts.report_deduplicator import deduplicate_warnings, get_top_revision_tasks
                 merged = deduplicate_warnings(
                     orch_report.get("warnings", []),
                     quality_policy.get("min_warning_confidence", 0.55))

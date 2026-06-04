@@ -2,7 +2,6 @@
 """Test perplexity_quality_guard — QGP 困惑度质量门禁测试"""
 import sys, json
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
 from src.guards.perplexity_quality_guard import (
     build_report,

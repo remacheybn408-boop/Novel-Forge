@@ -2,12 +2,11 @@
 
 import sqlite3, tempfile, os, sys, json
 from pathlib import Path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from init_db import init_db, find_schema, find_migrations
-from import_voice_packs import import_packs
-from import_voice_profiles import import_profiles
-from voice_profile_loader import load_voice_context, get_profiles_for_characters
+from scripts.init_db import init_db, find_schema, find_migrations
+from scripts.import_voice_packs import import_packs
+from scripts.import_voice_profiles import import_profiles
+from scripts.voice_profile_loader import load_voice_context, get_profiles_for_characters
 
 
 def _setup_db():

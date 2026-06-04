@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 from datetime import datetime
 from version import get_version
-from config_utils import normalize_config, load_json_config, resolve_path
+from scripts.config_utils import normalize_config, load_json_config, resolve_path
 
 def cmd_outline(args):
     """大纲管理命令"""

@@ -2,10 +2,9 @@
 
 import sqlite3, tempfile, os, sys
 from pathlib import Path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from init_db import init_db, find_schema, find_migrations
-from import_voice_packs import import_packs
+from scripts.init_db import init_db, find_schema, find_migrations
+from scripts.import_voice_packs import import_packs
 
 
 def _setup_db():

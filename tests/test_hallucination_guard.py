@@ -2,7 +2,6 @@
 test_hallucination_guard.py — 幻觉拦截测试
 """
 import pytest, json, sys, os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'scripts'))
 from src.guards.hallucination_guard import run_hallucination_check
 
 

@@ -21,7 +21,7 @@ from datetime import datetime
 from version import get_version
 
 try:
-    from config_utils import normalize_config, resolve_path
+    from scripts.config_utils import normalize_config, resolve_path
 except Exception:
     def normalize_config(cfg): return cfg
     def resolve_path(root, value):
