@@ -54,7 +54,7 @@ python novel.py demo
 # 日常写作
 python novel.py pre 1             # 写前任务卡
 python novel.py post 1            # 入库 + 22 Guard 门禁
-python novel.py agents review 1 --mode full  # 18 Agent 审稿
+python novel.py agents review 1 --mode full  # 20 Agent 审稿
 
 # 发布验收
 python novel.py stability-check --full
@@ -76,7 +76,7 @@ pre（写前任务卡）      ← 读取上章结尾 + SQLite 上下文
     ↓
 post（22 Guard 门禁） ← 幻觉 / 连续性 / AI腔 / 口吻 / 标点等
     ↓
-agents review（可选）  ← 18 Agent + Chief Editor 审稿
+agents review（可选）  ← 20 Agent + Chief Editor 审稿
     ↓
 ingest to SQLite       ← 入库 + 切片 + FTS + 摘要
     ↓
@@ -190,7 +190,7 @@ src/
 └── report/                      ← HTML 报告生成
 
 scripts/
-├── agents/                      ← 18 Agent 陪审团
+├── agents/                      ← 20 Agent 陪审团
 ├── guard_registry.py            ← 门禁注册中心
 ├── guard_result.py              ← 门禁数据结构
 ├── chapter_pipeline.py          ← 主流水线
