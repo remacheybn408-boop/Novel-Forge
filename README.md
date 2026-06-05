@@ -57,8 +57,31 @@ python novel.py pre 1             # 写前任务卡
 python novel.py post 1            # 入库 + 22 Guard 门禁
 python novel.py agents review 1 --mode full  # 20 Agent 审稿
 
+# 角色管理 (v0.7.1)
+python novel.py character list              # 列出角色
+python novel.py character show <角色名>     # 查看角色卡(含精神状态)
+python novel.py character mental <角色名>   # 管理精神状态
+python novel.py character mental-scan       # 从大纲扫描推荐精神状态
+
+# 质量检测
+python novel.py texture check 1             # 人工味质量层 (8 项)
+python novel.py check <文件路径>            # 单章检查
+
+# 故事合同
+python novel.py story init                  # 初始化合同目录
+python novel.py story contract              # 生成合同
+python novel.py story commit                # 提交章节记录
+python novel.py story health                # 故事链健康检查
+
+# 题材与风格
+python novel.py genre list                  # 查看题材预设
+python novel.py style list                  # 查看风格预设
+
 # 发布验收
 python novel.py stability-check --full
+
+# 查看报告
+python novel.py report
 
 # 导出
 python novel.py export --slug demo_novel --format txt
