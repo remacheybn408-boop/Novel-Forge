@@ -26,6 +26,7 @@
 | 10 | **角色综合管理** | 角色声纹卡 / 性格配置 / 做事风格，`python novel.py voice|character|texture` |
 | 11 | **Genre/Style Pack 预设** | 10 种 genre + 9 种 style 写作预设，`novel.py genre|style` 查看 |
 | 12 | **MCP 中文菜单桥接层** | 10 个安全 MCP 工具，AI 客户端通过中文直接操作引擎（`novel_menu`/`novel_status`/`novel_agents_review`/`novel_export_txt` 等），零命令、零路径暴露 |
+| 13 | **角色精神状态系统** | 角色卡第四层：15 类精神状况（PTSD/抑郁/焦虑等），severity 0-5 + 诱因 + 触发词 + 章节追踪，`character mental` CLI 管理，大纲中自动扫描推荐 |
 
 ---
 
