@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-quality_policy.py — 质量策略配置 v0.4.0
+quality_policy.py — 质量策略配置
 
 定义门禁执行策略: 分层、置信度、双证据、短章保护、风格白名单。
 不包含门禁逻辑，只提供策略查询和校验。
@@ -12,10 +12,11 @@ quality_policy.py — 质量策略配置 v0.4.0
   qp.can_fail("style_variation_guard")      # False
 """
 from typing import Optional
+from version import get_version
 
 
 DEFAULT_POLICY = {
-    "version": "v0.4.0",
+    "version": get_version(),
     "run_mode": "standard",
     "max_final_revision_tasks": 5,
     "min_warning_confidence": 0.55,

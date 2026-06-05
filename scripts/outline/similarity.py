@@ -93,19 +93,33 @@ def _extract_world_keywords(text: str) -> set:
     - 「宗派」「门派」「学院」「联盟」「帝国」「王国」「城市」等
     - 「法则」「规则」「体系」「系统」「设定」===
     """
+
+    # 虚词/功能词过滤器：含这些字的匹配大概率是碎句残片
+    _NOISE_CHARS = set(
+        "不是的了被把在和及而也就都还却只才便可但与从对向往到给让叫比将以因由为之其所中后前下上内外总各全本该此那这每某何怎什哪公开开始才能中期顺应理解改写伏笔"
+    )
+    # 以这些字开头的词组大概率是谓语/状语碎片，不是名词性关键词
+    _BAD_STARTS = ["不是", "而是", "公开", "开始", "中期", "才能", "顺应", "理解", "改写", "者之"]
+
     keywords = set()
 
+    # 正则：用非贪婪 {1,3} 限制前缀长度，减少吞入噪音
     world_patterns = [
-        r'([\u4e00-\u9fff]{1,4}(?:世界|大陆|星球|宇宙|位面|次元|时空|领域|秘境))',
-        r'([\u4e00-\u9fff]{2,6}(?:境界|功法|修炼|体系|法则|规则))',
-        r'([\u4e00-\u9fff]{2,6}(?:宗派|门派|学院|联盟|帝国|王国|城市|国度|圣地))',
+        r'([\u4e00-\u9fff]{1,3}(?:世界|大陆|星球|宇宙|位面|次元|时空|领域|秘境))',
+        r'([\u4e00-\u9fff]{1,4}(?:境界|功法|修炼|体系|法则))',
+        r'([\u4e00-\u9fff]{1,4}(?:宗派|门派|学院|联盟|帝国|王国|城市|国度|圣地))',
     ]
 
     for pat in world_patterns:
         for m in re.finditer(pat, text):
             kw = m.group(1).strip()
-            if len(kw) >= 2:
-                keywords.add(kw)
+            if not (2 <= len(kw) <= 6):
+                continue
+            if any(kw.startswith(bs) for bs in _BAD_STARTS):
+                continue
+            if any(c in _NOISE_CHARS for c in kw):
+                continue
+            keywords.add(kw)
 
     # 直接匹配世界观常见关键词
     world_kw_list = [

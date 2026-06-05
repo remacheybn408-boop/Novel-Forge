@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-revision_task_generator.py — 修改任务生成器 v0.4.0
+revision_task_generator.py — 修改任务生成器
 
 把 final_submission_report 或去重报告中的 Top 问题转成可执行改稿任务。
 只生成 Top 5，置信度 < 0.70 不进入。
@@ -12,6 +12,7 @@ revision_task_generator.py — 修改任务生成器 v0.4.0
 import re, json, sys, argparse
 from pathlib import Path
 from typing import Optional
+from version import get_version
 
 
 def count_chinese(text: str) -> int:
@@ -110,7 +111,7 @@ def generate_tasks(chapter_text: str, report: dict,
 
     chapter_no = report.get("chapter_no", 0)
     return {
-        "version": "v0.4.0",
+        "version": get_version(),
         "chapter_no": chapter_no,
         "source_file": "",
         "task_count": len(tasks),

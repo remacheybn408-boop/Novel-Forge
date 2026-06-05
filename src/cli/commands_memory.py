@@ -1,4 +1,4 @@
-"""src/cli/commands_memory.py — Memory/query/learn/RAG commands v0.6.7"""
+"""src/cli/commands_memory.py — Memory/query/learn/RAG commands v0.7.0"""
 
 from src.cli.shared import (PROJECT_ROOT, SCRIPTS_DIR, _load_project_config,
     _cfg_path, _get_default_slug, _get_novels_root, _resolve_post_context,
@@ -107,6 +107,44 @@ def cmd_query(args):
                 pass
 
     if hits == 0:
+        # Fallback: search FTS5 in active slot DB
+        try:
+            from src.cli.shared import _get_active_db_path
+            db_path = _get_active_db_path()
+            if db_path:
+                import sqlite3 as _s
+                conn = _s.connect(str(db_path))
+                terms = [t for t in question.strip().split() if t]
+                fts_hits = []
+                for t in terms:
+                    cur = conn.execute(
+                        "SELECT c.chapter_no, c.title, substr(fts.content,1,80) "
+                        "FROM novel_chapter_fts fts "
+                        "LEFT JOIN chapters c ON c.id = fts.rowid "
+                        "WHERE fts.content LIKE ? LIMIT 10",
+                        (f"%{t}%",)
+                    )
+                    fts_hits.extend(cur.fetchall())
+                if fts_hits:
+                    seen = set()
+                    print(f"  [全文搜索] 找到 {len(fts_hits)} 条匹配:\n")
+                    for row in fts_hits:
+                        ch_no = row[0] or "?"
+                        title = row[1] or f"第{ch_no}章"
+                        key = (ch_no, title)
+                        if key in seen:
+                            continue
+                        seen.add(key)
+                        preview = (row[2] or "").replace("\n", " ")
+                        print(f"  第{ch_no}章 {title}")
+                        print(f"    {preview}...\n")
+                    if seen:
+                        print(f"  共 {len(seen)} 章匹配。")
+                        conn.close()
+                        return 0
+                conn.close()
+        except Exception:
+            pass
         print("  未找到匹配的记忆。")
     else:
         print(f"\n  共 {hits} 条匹配。")

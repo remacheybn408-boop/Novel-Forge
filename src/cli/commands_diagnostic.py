@@ -1,9 +1,9 @@
-"""src/cli/commands_diagnostic.py — Diagnostic/status commands (board, stability-check) v0.6.7"""
+"""src/cli/commands_diagnostic.py — Diagnostic/status commands (board, stability-check) v0.7.1"""
 
 from src.cli.shared import (PROJECT_ROOT, SCRIPTS_DIR, _load_project_config,
     _cfg_path, _get_default_slug, _get_novels_root, _resolve_post_context,
-    _story_exists, _story_missing_msg, _get_workspace_dir, _get_active_db_path,
-    _get_outline_manager, _check_outline_gate, _get_story_dir)
+    _resolve_chapter_path, _story_exists, _story_missing_msg, _get_workspace_dir,
+    _get_active_db_path, _get_outline_manager, _check_outline_gate, _get_story_dir)
 import sys
 import json
 from pathlib import Path
@@ -85,9 +85,10 @@ def cmd_board(args):
                     slot_slug = pj.get("title") or pj.get("name")
             except Exception:
                 pass
-            slug = slot_slug or cfg_data.get("default_novel_slug", "demo_novel")
+            from src.cli.shared import _get_default_slug
+            slug = slot_slug or _get_default_slug()
             novels_root = resolve_path(PROJECT_ROOT, cfg_data.get("novels_root", "./novels"))
-            ch_dir = Path(novels_root) / slug / "第01卷"
+            ch_dir = Path(_resolve_chapter_path(slug))
             if ch_dir.exists():
                 chapters = sorted(ch_dir.glob("第*章*.txt"))
                 print(f"  已完成章节: {len(chapters)}")
@@ -382,8 +383,21 @@ def cmd_stability_check(args=None):
                 err_tail = demo.stderr.strip().split("\n")[-3:]
                 p0_issues.append(f"demo 全流程失败 (exit={demo.returncode}): {'; '.join(err_tail)}")
                 score -= 20
-        except _sp.TimeoutExpired:
-            checks.append(("demo 全流程", False, "超时 (120s)"))
+        except _sp.TimeoutExpired as _te:
+            # Kill the hung demo process (may have orphaned grandchildren)
+            try:
+                _te.process.kill()
+                _te.process.wait(timeout=5)
+            except Exception:
+                pass
+            # Try to grab partial output for debugging
+            partial = ""
+            try:
+                if _te.stdout:
+                    partial = _te.stdout[-300:]
+            except Exception:
+                pass
+            checks.append(("demo 全流程", False, f"超时 (120s) {partial[:100]}"))
             p0_issues.append("demo 全流程超时")
             score -= 15
         except Exception as e:

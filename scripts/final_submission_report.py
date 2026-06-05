@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-final_submission_report.py — 最终投稿报告 v0.4.0
+final_submission_report.py — 最终投稿报告
 
 汇总所有门禁报告，生成投稿就绪状态摘要。
 
@@ -25,6 +25,7 @@ CLI:
 import json, sys, argparse, os
 from pathlib import Path
 from typing import Dict, List, Optional
+from version import get_version
 
 
 # ═══════════════════════════════════════════════════
@@ -102,7 +103,7 @@ def aggregate_reports(
 
     return {
         "report_type": "final_submission_report",
-        "version": "v0.4.0",
+        "version": get_version(),
         "chapter_no": chapter_no,
         "overall_status": overall_status,
         "guards": guards_summary,
@@ -207,7 +208,7 @@ def _timestamp() -> str:
 def _empty_aggregate(chapter_no: int) -> dict:
     return {
         "report_type": "final_submission_report",
-        "version": "v0.4.0",
+        "version": get_version(),
         "chapter_no": chapter_no,
         "overall_status": "READY",
         "guards": {},

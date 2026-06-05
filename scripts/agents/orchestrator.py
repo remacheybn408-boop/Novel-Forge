@@ -38,6 +38,7 @@ from .pacing_breath_agent import PacingBreathAgent
 from .consequence_agent import ConsequenceAgent
 from .paragraph_texture_agent import ParagraphTextureAgent
 from .promise_payoff_agent import PromisePayoffAgent
+from .mental_state_agent import MentalStateAgent
 
 
 # ── Agent 注册表 ──
@@ -59,6 +60,7 @@ AGENT_REGISTRY = {
     "consequence": ConsequenceAgent,
     "paragraph_texture": ParagraphTextureAgent,
     "promise_payoff": PromisePayoffAgent,
+    "mental_state": MentalStateAgent,
     "chief_editor": ChiefEditor,
 }
 
@@ -71,7 +73,7 @@ MODE_AGENTS = {
               "body_action", "subtext", "emotion_curve",
               "scene_grounding", "relationship", "mundane_detail",
               "pacing_breath", "consequence", "paragraph_texture",
-              "promise_payoff"],
+              "promise_payoff", "mental_state"],
 }
 
 

@@ -134,7 +134,9 @@ class SlotManager:
                     title TEXT NOT NULL,
                     content TEXT DEFAULT '',
                     importance INTEGER DEFAULT 3,
-                    tags TEXT DEFAULT ''
+                    tags TEXT DEFAULT '',
+                    created_at TEXT DEFAULT (datetime('now')),
+                    updated_at TEXT DEFAULT (datetime('now'))
                 );
 
                 CREATE TABLE IF NOT EXISTS plot_threads (
@@ -285,6 +287,23 @@ class SlotManager:
                     title_type TEXT DEFAULT 'chapter',
                     change_reason TEXT DEFAULT '',
                     changed_at TEXT DEFAULT (datetime('now'))
+                );
+
+                CREATE TABLE IF NOT EXISTS chapter_contexts (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    novel_id INTEGER NOT NULL REFERENCES novels(id),
+                    chapter_id INTEGER NOT NULL REFERENCES chapters(id),
+                    chapter_no INTEGER NOT NULL,
+                    character_locations TEXT DEFAULT '{}',
+                    active_items TEXT DEFAULT '[]',
+                    unresolved_threads TEXT DEFAULT '[]',
+                    emotional_states TEXT DEFAULT '{}',
+                    world_state TEXT DEFAULT '',
+                    ending_state TEXT DEFAULT '',
+                    hooks_for_next TEXT DEFAULT '',
+                    raw_summary TEXT DEFAULT '',
+                    created_at TEXT DEFAULT (datetime('now')),
+                    UNIQUE(novel_id, chapter_id)
                 );
 
                 -- FTS5 全文检索索引 (v0.6.5-clean3)

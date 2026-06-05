@@ -105,15 +105,15 @@ class OutlineManager:
         return f"{base}_{ts}"
 
     def _title_to_slug(self, title: str) -> str:
-        """将中文标题转为拼音 slug（v0.6.5-clean6）"""
-        import re, hashlib
-        # 简单方案：取标题前8个中文字符的 MD5 前8位
-        chinese = re.sub(r'[^\u4e00-\u9fff]', '', title)[:8]
-        if chinese:
-            return hashlib.md5(chinese.encode()).hexdigest()[:8]
-        # 纯英文/数字
-        clean = re.sub(r'[^a-z0-9]', '_', title.lower().strip())[:20]
-        return clean or "novel"
+        """将中文标题转为可用作 slug 的字符串。
+
+        保留中文字符、字母、数字，替换其他字符为下划线。
+        SQLite TEXT / URL 路径均可正常处理 Unicode。
+        """
+        import re
+        clean = re.sub(r'[^\u4e00-\u9fff\w\-]', '_', title.strip())[:30]
+        clean = clean.strip("_").lower() or "novel"
+        return clean
 
     def _snapshot_version(self, old_data: Dict) -> List[Dict]:
         """创建一个版本快照，追加到版本历史"""
@@ -219,6 +219,26 @@ class OutlineManager:
         proj["active_outline"] = outline_id
         proj["updated_at"] = datetime.now().isoformat()
         self._save_project_json(proj)
+
+        # v0.7.1-e: Insert novel row into slot's novels table
+        try:
+            import sqlite3 as _sql
+            slot_dir = self._get_slot_dir(active)
+            db_path = slot_dir / "novel.db"
+            if db_path.exists():
+                _slug = self._title_to_slug(title)
+                _conn = _sql.connect(str(db_path))
+                _conn.execute(
+                    "INSERT OR IGNORE INTO novels(slug, title, status) VALUES(?,?,?)",
+                    (_slug, title, "planning")
+                )
+                _conn.commit()
+                _conn.close()
+        except Exception:
+            pass
+
+        # 自动提取角色关系
+        self._auto_extract_relations(content, active)
 
         result = {
             "status": "ok",
@@ -633,7 +653,7 @@ class OutlineManager:
                 sm._init_slot_db(slot_dir)
             except Exception:
                 # Fallback: 内联建库（仅 core 表 + FTS5）
-                conn.executescript("""
+                conn.executescript("""\
                     CREATE TABLE IF NOT EXISTS novels (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         slug TEXT UNIQUE NOT NULL,
@@ -646,6 +666,15 @@ class OutlineManager:
                         status TEXT DEFAULT 'planning',
                         created_at TEXT DEFAULT (datetime('now')),
                         updated_at TEXT DEFAULT (datetime('now'))
+                    );
+                    CREATE TABLE IF NOT EXISTS volumes (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        novel_id INTEGER NOT NULL REFERENCES novels(id),
+                        volume_no INTEGER NOT NULL,
+                        title TEXT DEFAULT '',
+                        summary TEXT DEFAULT '',
+                        target_words INTEGER DEFAULT 0,
+                        UNIQUE(novel_id, volume_no)
                     );
                     CREATE TABLE IF NOT EXISTS chapters (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -662,7 +691,111 @@ class OutlineManager:
                         updated_at TEXT DEFAULT (datetime('now')),
                         UNIQUE(novel_id, chapter_no)
                     );
-                    -- v0.6.5-clean4: FTS5 tables
+                    CREATE TABLE IF NOT EXISTS chapter_contexts (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        novel_id INTEGER NOT NULL REFERENCES novels(id),
+                        chapter_id INTEGER NOT NULL REFERENCES chapters(id),
+                        chapter_no INTEGER NOT NULL,
+                        character_locations TEXT DEFAULT '{}',
+                        active_items TEXT DEFAULT '[]',
+                        unresolved_threads TEXT DEFAULT '[]',
+                        emotional_states TEXT DEFAULT '{}',
+                        world_state TEXT DEFAULT '',
+                        ending_state TEXT DEFAULT '',
+                        hooks_for_next TEXT DEFAULT '',
+                        raw_summary TEXT DEFAULT '',
+                        created_at TEXT DEFAULT (datetime('now')),
+                        UNIQUE(novel_id, chapter_id)
+                    );
+                    CREATE TABLE IF NOT EXISTS memories (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        type TEXT DEFAULT 'note',
+                        project TEXT DEFAULT '',
+                        title TEXT NOT NULL,
+                        content TEXT NOT NULL,
+                        tags TEXT DEFAULT '',
+                        importance INTEGER DEFAULT 3,
+                        source TEXT DEFAULT '',
+                        status TEXT DEFAULT 'active',
+                        created_at TEXT DEFAULT (datetime('now')),
+                        updated_at TEXT DEFAULT (datetime('now')),
+                        last_used_at TEXT DEFAULT (datetime('now'))
+                    );
+                    CREATE TABLE IF NOT EXISTS characters (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        novel_id INTEGER NOT NULL REFERENCES novels(id),
+                        name TEXT NOT NULL,
+                        alias TEXT DEFAULT '',
+                        identity TEXT DEFAULT '',
+                        appearance TEXT DEFAULT '',
+                        personality TEXT DEFAULT '',
+                        archetype TEXT DEFAULT '',
+                        voice TEXT DEFAULT '',
+                        behavior TEXT DEFAULT '',
+                        mental_state TEXT DEFAULT '',
+                        backstory TEXT DEFAULT '',
+                        motivation TEXT DEFAULT '',
+                        role TEXT DEFAULT 'supporting',
+                        faction TEXT DEFAULT '',
+                        power_level TEXT DEFAULT '',
+                    tags TEXT DEFAULT '',
+                        description TEXT DEFAULT '',
+                        attributes TEXT DEFAULT '{}',
+                        relationships TEXT DEFAULT '[]',
+                        status TEXT DEFAULT 'active',
+                        created_at TEXT DEFAULT (datetime('now')),
+                        updated_at TEXT DEFAULT (datetime('now')),
+                        UNIQUE(novel_id, name)
+                    );
+                    CREATE TABLE IF NOT EXISTS plot_threads (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        novel_id INTEGER NOT NULL REFERENCES novels(id),
+                        title TEXT NOT NULL,
+                        thread_type TEXT DEFAULT 'main',
+                        status TEXT DEFAULT 'active',
+                        priority INTEGER DEFAULT 0,
+                        description TEXT DEFAULT '',
+                        related_chapters TEXT DEFAULT '[]',
+                        related_arcs TEXT DEFAULT '[]',
+                        foreshadowing TEXT DEFAULT '',
+                        expected_resolution TEXT DEFAULT '',
+                        created_at TEXT DEFAULT (datetime('now')),
+                        UNIQUE(novel_id, title)
+                    );
+                    CREATE TABLE IF NOT EXISTS worldbuilding (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        novel_id INTEGER NOT NULL REFERENCES novels(id),
+                        title TEXT NOT NULL,
+                        category TEXT DEFAULT '',
+                        content TEXT DEFAULT '',
+                        tags TEXT DEFAULT '',
+                        created_at TEXT DEFAULT (datetime('now')),
+                        updated_at TEXT DEFAULT (datetime('now')),
+                        UNIQUE(novel_id, title)
+                    );
+                    CREATE TABLE IF NOT EXISTS reader_promises (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        novel_id INTEGER NOT NULL REFERENCES novels(id),
+                        title TEXT NOT NULL,
+                        description TEXT DEFAULT '',
+                        status TEXT DEFAULT 'pending',
+                        priority INTEGER DEFAULT 0,
+                        expected_chapter INTEGER DEFAULT 0,
+                        fulfilled_chapter INTEGER DEFAULT 0,
+                        created_at TEXT DEFAULT (datetime('now')),
+                        UNIQUE(novel_id, title)
+                    );
+                    CREATE TABLE IF NOT EXISTS writing_rules (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        novel_id INTEGER NOT NULL REFERENCES novels(id),
+                        rule TEXT NOT NULL,
+                        category TEXT DEFAULT '',
+                        source TEXT DEFAULT '',
+                        active INTEGER DEFAULT 1,
+                        created_at TEXT DEFAULT (datetime('now')),
+                        UNIQUE(novel_id, rule)
+                    );
+                    -- FTS5 tables
                     CREATE VIRTUAL TABLE IF NOT EXISTS novel_chapter_fts USING fts5(
                         title, content, summary, content='chapters', content_rowid='id'
                     );
@@ -854,6 +987,9 @@ class OutlineManager:
         # 4. 切换到新 slot
         old_slot = self._switch_active_slot(slot_id)
 
+        # 自动提取角色关系
+        self._auto_extract_relations(content, slot_id)
+
         return {
             "status": "ok",
             "slot_id": slot_id,
@@ -909,6 +1045,9 @@ class OutlineManager:
             oid = current.get("id")
             self._write_outline_file(oid, old_data)
 
+            # 自动提取角色关系
+            self._auto_extract_relations(content)
+
             return {
                 "status": "ok",
                 "mode": "replace",
@@ -947,6 +1086,9 @@ class OutlineManager:
             self._write_outline_file(outline_id, data)
             # 不修改 active_outline，保留当前激活大纲不变
 
+            # 自动提取角色关系
+            self._auto_extract_relations(content)
+
             return {
                 "status": "ok",
                 "mode": "inactive",
@@ -959,6 +1101,160 @@ class OutlineManager:
     # ──────────────────────────────────────────────
     #  13. 分类大纲：升级/同作/新作/需确认
     # ──────────────────────────────────────────────
+
+    # ──────────────────────────────────────────────
+    #  14. 角色关系自动提取
+    # ──────────────────────────────────────────────
+
+    def _auto_extract_relations(self, content: str, slot_id: str = None) -> int:
+        """从大纲文本中自动提取角色关系并写入数据库。
+
+        扫描关系关键词，识别角色间的关系类型：
+        - "好友"/"朋友" → 友谊
+        - "敌人"/"反派"/"对立" → 敌对
+        - "师兄"/"师妹"/"师尊"/"弟子" → 师徒
+        - "女主"/"女友"/"恋人"/"前世女友" → 恋人
+
+        返回写入的关系数量。
+        """
+        import re as _re
+        sid = slot_id or self._get_active_slot()
+        if not sid:
+            return 0
+
+        # 1. 提取所有中文名
+        surnames_str = ("李王张刘陈杨赵黄周吴徐孙马胡朱郭何林高罗"
+                        "郑梁谢宋唐许邓韩冯曹彭曾肖田董潘袁蔡蒋余"
+                        "于杜叶程苏魏吕丁任卢姚沈姜崔钟谭陆汪范金"
+                        "石廖贾夏韦傅方白邹孟熊秦邱江尹薛阎段雷侯"
+                        "龙史陶黎贺顾毛郝龚邵万钱严覃武戴莫孔向汤")
+        surnames = set(surnames_str)
+        _punct_chars = set("，。！？、；：""（）《》…— \t,./!?;:()[]{}")
+        _bad_endings = {"场", "上", "下", "里", "前", "后", "中", "的", "了",
+                        "和", "与", "在", "把", "被", "将", "对", "为",
+                        "都", "也", "还", "就", "已", "能", "会", "可",
+                        "来", "去", "出", "进", "到", "从", "以"}
+        _stop_words = {"时候", "地方", "这里", "那里", "这边", "那边", "怎么", "什么",
+                       "没有", "已经", "可以", "需要", "知道", "看见", "告诉", "开始",
+                       "继续", "回到", "来到", "走出", "进入", "拿起", "放下"}
+        _COMMON_COMPOUNDS = {
+            "严禁", "严肃", "严重", "严格",
+            "过程", "工程", "程度", "程序", "章程", "课程",
+            "关于", "等于", "至于", "由于", "位于", "对于", "属于", "终于",
+            "马上", "马路",
+            "王国", "帝王", "霸王",
+            "龙王", "巨龙", "恐龙", "神龙",
+            "森林", "树林", "丛林", "园林", "密林",
+            "资金", "金属", "现金", "黄金",
+            "石头", "宝石", "钻石", "化石", "岩石",
+            "方法", "方式", "方案", "方向", "方面",
+            "高度", "高级", "高大", "高尚",
+            "周围", "周期", "周年",
+            "黄色", "黄昏",
+            "江湖", "江山",
+            "明白", "黑白", "洁白",
+            "历史", "史书",
+            "毛病", "毛发",
+            "万物", "万事", "万一",
+            "武器", "武功", "武术",
+            "雷霆", "雷电",
+            "段落", "手段", "阶段",
+            "任何", "如何",
+            "感谢", "谢谢",
+            "苏醒", "复苏",
+            "沉思", "沉重",
+            "范围", "范例",
+            "清楚", "清晰", "清醒", "清理",
+            "叶子", "树叶",
+        }
+
+        reliable_names = set()
+        for pattern in [r'(?:主角|姓名|角色|人物|男主|女主|男配|女配)[：:]\s*([^\n，。]{2,4})',
+                        r'(?:主角|姓名|角色|人物|男主|女主|男配|女配)[是为叫作叫做称呼]\s*([^\n，。]{2,4})']:
+            for m in _re.finditer(pattern, content):
+                name = m.group(1).strip()
+                if 2 <= len(name) <= 4:
+                    reliable_names.add(name)
+
+        heuristic_names = set()
+        for i, ch in enumerate(content):
+            if ch in surnames and i + 1 < len(content):
+                nxt = content[i + 1]
+                if nxt not in _punct_chars:
+                    candidate2 = content[i:i + 2]
+                    if candidate2[1] not in _bad_endings and candidate2 not in _stop_words and candidate2 not in _COMMON_COMPOUNDS:
+                        heuristic_names.add(candidate2)
+
+        all_names = set(reliable_names)
+        for hn in heuristic_names:
+            if any(hn in rn or rn in hn for rn in reliable_names):
+                continue
+            if content.count(hn) < 2:
+                continue
+            all_names.add(hn)
+        all_names = {n for n in all_names if 2 <= len(n) <= 4}
+        if len(all_names) < 2:
+            return 0
+
+        # 2. 关系关键词映射
+        RELATION_KEYWORDS = {
+            "友谊": ["好友", "朋友", "挚友", "知己", "兄弟", "闺蜜", "至交", "死党"],
+            "敌对": ["敌人", "反派", "对立", "仇人", "宿敌", "对手", "死敌", "对头"],
+            "师徒": ["师兄", "师妹", "师尊", "弟子", "师父", "师姐", "师弟",
+                    "师叔", "师伯", "徒儿", "师傅", "师侄", "师祖"],
+            "恋人": ["女友", "前世女友", "恋人", "情侣", "道侣", "夫妻", "丈夫",
+                    "妻子", "未婚妻", "未婚夫", "红颜知己"],
+        }
+
+        relations_found = []
+
+        # 3. 扫描每个句子/段落，检测角色关系
+        segments = _re.split(r'[。\n]', content)
+        for seg in segments:
+            seg = seg.strip()
+            if len(seg) < 10:
+                continue
+
+            # 找出段落中出现的所有角色名
+            names_in_seg = [n for n in all_names if n in seg]
+            if len(names_in_seg) < 2:
+                continue
+
+            # 检查是否包含关系关键词
+            for rel_type, keywords in RELATION_KEYWORDS.items():
+                for kw in keywords:
+                    if kw not in seg:
+                        continue
+                    # 找到关键词附近的角色名对
+                    kw_pos = seg.find(kw)
+                    for i, na in enumerate(names_in_seg):
+                        for nb in names_in_seg[i + 1:]:
+                            if na == nb:
+                                continue
+                            # 只添加尚未记录的关系（去重）
+                            pair = tuple(sorted([na, nb]))
+                            existing = any(
+                                tuple(sorted([r[0], r[1]])) == pair and r[2] == rel_type
+                                for r in relations_found
+                            )
+                            if not existing:
+                                relations_found.append((na, nb, rel_type))
+                    break  # 每段对每个关系类型只匹配一次
+
+        if not relations_found:
+            return 0
+
+        # 4. 写入数据库
+        from src.guards.human_texture.voice_diversity_guard import set_relation
+        saved = 0
+        for char_a, char_b, rel_type in relations_found:
+            ok = set_relation(self.project_root, char_a, char_b, rel_type)
+            if ok:
+                saved += 1
+
+        if saved > 0:
+            print(f"  [OK] 自动识别 {saved} 条角色关系")
+        return saved
 
     def classify_outline(self, outline_id: str) -> Dict:
         """获取大纲的分类信息"""

@@ -1,7 +1,8 @@
-"""src/cli/commands_agents.py — Agent review board commands v0.6.7"""
+"""src/cli/commands_agents.py — Agent review board commands v0.7.0"""
 
 from src.cli.shared import (PROJECT_ROOT, SCRIPTS_DIR, _load_project_config,
-    _cfg_path, _get_default_slug, _get_novels_root, _resolve_post_context)
+    _cfg_path, _get_default_slug, _get_novels_root, _resolve_post_context,
+    find_chapter_file)
 import sys
 import json
 from pathlib import Path
@@ -100,16 +101,49 @@ def cmd_agents(args):
         _cfg = {}
         if cfg_path.exists():
             _cfg = _load_project_config()
-        slug = getattr(args, "slug", None) or _cfg.get("default_novel_slug", "demo_novel")
-        novels_root = resolve_path(PROJECT_ROOT, _cfg.get("novels_root", "./novels"))
-        ch_dir = Path(novels_root) / slug / "第01卷"
-        candidates = list(ch_dir.glob(f"第{chapter_no}章*.txt"))
-        if not candidates:
+        slug = getattr(args, "slug", None)
+        # Always resolve chapters dir from active slot
+        resolved_chapters_dir, slot_db_path, resolved_slug, _ = _resolve_post_context(cfg_path)
+        if not slug:
+            slug = resolved_slug
+
+        # v0.7.1: 未开始写作时跳过审稿，避免无意义的 FAIL
+        if slot_db_path:
+            import sqlite3 as _sql
+            try:
+                conn = _sql.connect(str(slot_db_path))
+                ch_count = conn.execute("SELECT COUNT(*) FROM chapters").fetchone()[0]
+                conn.close()
+                if ch_count == 0:
+                    print(f"  ℹ️ 尚未开始写作，当前无入库章节，跳过审稿")
+                    print(f"    提示: 先写第一章再运行 python novel.py post 1")
+                    return 0
+            except Exception:
+                pass
+
+        ch_dir = Path(resolved_chapters_dir) if resolved_chapters_dir else None
+        if not ch_dir or not ch_dir.exists():
+            # Fallback: search workspace for the chapter file
+            ws = PROJECT_ROOT / "workspace"
+            ch_dir = ws  # Will glob across workspace
+            ch_fp = None
+            for slot_dir in sorted(ws.glob("slot_*")):
+                ch_fp = find_chapter_file(int(chapter_no), slot_dir / "chapters")
+                if ch_fp:
+                    break
+            if ch_fp:
+                content = ch_fp.read_text(encoding="utf-8")
+            else:
+                print(f"[ERROR] 找不到第{chapter_no}章文件 (搜索目录: {ch_dir})")
+                return 1
+        else:
+            ch_fp = find_chapter_file(int(chapter_no), ch_dir)
+        if not ch_fp:
             print(f"[ERROR] 找不到第{chapter_no}章文件 (目录: {ch_dir})")
             print(f"  请指定 --slug 参数，如: python novel.py agents review {chapter_no} --slug 格物证道")
             return 1
         else:
-            content = candidates[0].read_text(encoding="utf-8")
+            content = ch_fp.read_text(encoding="utf-8")
 
         mode = getattr(args, "mode", "light")
         print(f"Running {mode}-mode agent review for chapter {chapter_no}...")

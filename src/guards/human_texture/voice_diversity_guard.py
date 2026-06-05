@@ -41,6 +41,9 @@ BEHAVIOR_FIELDS = [
     "habits",            # 习惯动作: list[str]
 ]
 
+# ── 精神状态维度（从独立模块重新导出）──
+from .mental_state_crud import MENTAL_STATE_CATEGORIES
+
 PERSONALITY_CHOICES = {
     "core": ["沉稳", "暴躁", "谨慎", "冲动", "温和", "狡诈", "天真", "冷酷"],
     "decision_style": ["深思熟虑", "直觉行动", "优柔寡断"],
@@ -170,7 +173,7 @@ def _is_flat_card(card: dict) -> bool:
 
 
 def _upgrade_flat_card(name: str, card: dict) -> dict:
-    """将旧版扁平格式升级为嵌套格式."""
+    """将旧版扁平格式升级为嵌套格式。"""
     voice_fields = {k: card.get(k, "") for k in VOICE_CARD_FIELDS if k in card}
     return {
         "name": name,
@@ -760,7 +763,7 @@ def run_voice_diversity_check(content: str, chapter_no: int,
 
 
 # ──────────────────────────────────────────────
-#  综合角色风格质量检测（v0.6.7+，弹性可配）
+#  综合角色风格质量检测（v0.7.0+，弹性可配）
 # ──────────────────────────────────────────────
 
 # 阈值配置（弹性可调）
@@ -998,7 +1001,7 @@ def run_character_style_check(content: str, chapter_no: int,
 
     return {
         "guard": "character_style_check",
-        "version": "v0.6.7",
+        "version": "v0.7.0",
         "status": status,
         "score": score,
         "findings": findings,

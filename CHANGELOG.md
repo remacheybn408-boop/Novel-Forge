@@ -1,3 +1,47 @@
+## v0.7.1 - 角色精神状态系统 (2026-06-04)
+
+### Added
+- **角色精神状态系统** — 角色卡新增第四层 `mental_state`，支持 15 类精神状况
+  - 数据模型：severity 0-5 + 诱因 + 触发词 + 表现 + 章节追踪
+  - 15 类全覆盖：抑郁症、PTSD、焦虑症、强迫症、PTSD（战场型）、人格障碍等
+- **CLI 命令** — `character mental <角色名>` 查看/管理精神状态
+  - sub 命令: `set` / `onset` / `trigger` / `manifest` / `check`
+  - `character mental-scan` 从大纲自动扫描推荐精神状态
+  - `outline mental-scan` 同上（outline 子命令别名）
+- **mental_state_guard** — 4 条审核规则（过度检测/一致性/偏离/章节追踪）
+  - 已注册到 guard_registry，standard + submission 模式自动运行
+  - 题材弹性阈值（修仙宽松、都市严格、惊悚更宽松）
+- **关键词词库** — `configs/human_texture/mental_state_presets.yaml` 15 类 × 4 维度
+- **角色卡展示** — `character show` 新增精神状态区块
+
+### Changed
+- `voice_diversity_guard.py` — 新增 `MENTAL_STATE_CATEGORIES` 导出、`_upgrade_flat_card` 保留 mental_state
+- `genre_presets.yaml` — 新增 `mental_state` 弹性阈值区块（12 题材 + default）
+- `guard_registry.py` — 注册 mental_state_guard（level 2）
+- `commands_character.py` — 新增 mental/mental-scan 子命令
+- `commands_outline.py` — 新增 mental-scan 子命令
+
+### Test
+- 新增 `tests/test_mental_state.py` — 11 个测试（guard 规则 + 数据模型 + 词库）
+- 全量 323 测试通过
+
+## v0.7.0 - MCP 中文菜单桥接层 (2026-06-04)
+
+### Added
+- **MCP 中文菜单桥接层** — 全新 `mcp_server/` 模块，支持 MCP 协议的 AI 客户端通过中文自然语言调用引擎
+  - 10 个安全工具：novel_menu / novel_status / novel_db_list / novel_outline_list / novel_outline_add / novel_chapters / novel_agents_review / novel_story_health / novel_report / novel_export_txt
+  - 全中文输出，不暴露终端命令、路径、源码
+  - 白名单安全机制（safety.py），正则匹配预定义命令模式
+  - 审计日志（audit.py），记录到 logs/mcp_audit.log
+  - 超时控制（状态查询 10s / 审稿 60s / 导出 60s）
+  - 大纲添加二次确认机制（preview → confirm_action）
+  - 支持 Claude Code / Cursor / Hermes 等客户端接入
+- **文档** — docs/MCP_CN_GUIDE.md 中文用户指南
+- **依赖** — pyproject.toml 添加 mcp>=1.0.0，注册 novel-mcp 控制台入口
+
+### Changed
+- 版本号 v0.6.7 → v0.7.0（README / CHANGELOG / pyproject.toml / novel.py / scc_menu.json / hermes_menu.py / command headers 全统一）
+
 ## v0.6.7 - 综合管理模块 (2026-06-03)
 
 ### Added

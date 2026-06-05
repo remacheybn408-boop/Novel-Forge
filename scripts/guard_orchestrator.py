@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-guard_orchestrator.py — 门禁调度器 v0.4.0
+guard_orchestrator.py — 门禁调度器
 
 分层执行门禁，支持 4 种运行模式，控制 WARNING/BLOCK 边界。
 不直接检查文本，只负责决定跑哪些门禁、按什么顺序。

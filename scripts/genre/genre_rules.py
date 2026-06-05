@@ -37,7 +37,7 @@ def _check_generic(text: str, findings: List[Dict], wc: int):
                    "仿佛在说", "仿佛在告诉", "似乎预示着"]
     for pat in ai_patterns:
         count = text.count(pat)
-        if count >= 2:
+        if count >= 5:
             findings.append({
                 "level": "WARNING", "type": "AI腔模式",
                 "message": f"检测到AI模板句式'{pat}'出现{count}次",

@@ -27,46 +27,46 @@ class TestWordCountGateV5:
         """Normal < 1900 fails"""
         import scripts.chapter_pipeline as cp; cp.app = app
         content = "测试" * 900  # 1800
-        result, wc = cp.word_count_gate(content, 1, "normal")
+        result, wc, eff_min = cp.word_count_gate(content, 1, "normal")
         assert result == False
 
     def test_normal_1900_passes(self, app):
         """Normal 1900 passes (best range)"""
         import scripts.chapter_pipeline as cp; cp.app = app
         content = "测试" * 950  # 1900
-        result, wc = cp.word_count_gate(content, 1, "normal")
+        result, wc, eff_min = cp.word_count_gate(content, 1, "normal")
         assert result == "ideal"
 
     def test_normal_2400_ideal(self, app):
         import scripts.chapter_pipeline as cp; cp.app = app
         content = "测试" * 1200  # 2400
-        result, wc = cp.word_count_gate(content, 1, "normal")
+        result, wc, eff_min = cp.word_count_gate(content, 1, "normal")
         assert result == "ideal"
 
     def test_normal_3500_warns(self, app):
         """Normal > 3300 oversize"""
         import scripts.chapter_pipeline as cp; cp.app = app
         content = "测试" * 1750  # 3500
-        result, wc = cp.word_count_gate(content, 1, "normal")
+        result, wc, eff_min = cp.word_count_gate(content, 1, "normal")
         assert result == "oversize"
 
     def test_key_2000_passes(self, app):
         """Key chapter 2000 passes (not forced to 3300)"""
         import scripts.chapter_pipeline as cp; cp.app = app
         content = "测试" * 1000  # 2000
-        result, wc = cp.word_count_gate(content, 1, "key")
+        result, wc, eff_min = cp.word_count_gate(content, 1, "key")
         assert result == True  # passes, below best_min but above min
 
     def test_climax_2300_passes(self, app):
         """Climax 2300 passes (not forced to 4200)"""
         import scripts.chapter_pipeline as cp; cp.app = app
         content = "测试" * 1150  # 2300
-        result, wc = cp.word_count_gate(content, 1, "climax")
+        result, wc, eff_min = cp.word_count_gate(content, 1, "climax")
         assert result == "ideal"
 
     def test_climax_6000_oversize(self, app):
         """Climax > 5500 fails"""
         import scripts.chapter_pipeline as cp; cp.app = app
         content = "测试" * 3000  # 6000
-        result, wc = cp.word_count_gate(content, 1, "climax")
+        result, wc, eff_min = cp.word_count_gate(content, 1, "climax")
         assert result == "oversize"

@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""src/cli/commands_core.py — Core CLI commands (report/guards/check/wc/init/genre/style) v0.6.7"""
+"""src/cli/commands_core.py — Core CLI commands (report/guards/check/wc/init/genre/style) v0.7.0"""
 
 from src.cli.shared import (PROJECT_ROOT, SCRIPTS_DIR, _load_project_config, _cfg_path,
     _get_default_slug, _get_novels_root, _get_outline_dir, _resolve_post_context,
-    _story_exists, _story_missing_msg, _get_workspace_dir, _get_active_db_path,
-    _get_outline_manager, _check_outline_gate, _get_story_dir)
+    find_chapter_file,
+    _resolve_chapter_path, _story_exists, _story_missing_msg, _get_workspace_dir,
+    _get_active_db_path, _get_outline_manager, _check_outline_gate, _get_story_dir)
 import sys
 import json
 from pathlib import Path
@@ -91,7 +92,7 @@ def cmd_guards():
 
 
 def cmd_check(file_path: str):
-    """Run v0.6.7 guards on a chapter file."""
+    """Run the standard guard set on a chapter file (single-entry via guard_registry)."""
     fp = Path(file_path)
     if not fp.exists():
         print(f"[ERROR] File not found: {fp}")
@@ -101,63 +102,28 @@ def cmd_check(file_path: str):
     print("=" * 60)
     print(f"  Checking: {fp.name}")
     print("=" * 60)
-    print()
 
-    # Reader pull guard
-    print("--- reader_pull_guard ---")
     try:
-        from src.guards.reader_pull_guard import run_reader_pull_check
-        rp_report = run_reader_pull_check(content, chapter_no=1)
-        status = rp_report["status"]
-        issues = len(rp_report.get("issues", []))
-        print(f"  Status: {status} ({issues} issues)")
-        if issues:
-            for iss in rp_report.get("issues", [])[:5]:
-                print(f"    [{iss['code']}] {iss['message'][:80]}")
+        from scripts.guard_registry import run_standard_guards
+        summary = run_standard_guards(content, chapter_no=1, mode="standard")
+        print(f"  Executed: {len(summary.executed_guards)} guards")
+        print(f"  Skipped:  {len(summary.skipped_guards)} guards")
+        print(f"  Failures: {summary.fail_count}")
+        print(f"  Warnings: {summary.warn_count}")
+        if summary.blocked_by:
+            print(f"  BLOCKED by: {summary.blocked_by}")
+        if summary.fail_count > 0:
+            print(f"\n  Guard failures:")
+            for r in summary.results:
+                if r.status == "FAIL":
+                    print(f"    [{r.guard}] {len(r.findings)} findings")
+        print(f"\n  Overall: {summary.overall_status}")
     except ImportError as e:
-        print(f"  [WARN] reader_pull_guard not available: {e}")
+        print(f"  [WARN] guard_registry not available: {e}")
+        print(f"  Hint: run 'python novel.py post <N>' for full post-write pipeline")
     except Exception as e:
-        print(f"  [WARN] reader_pull_guard error: {e}")
+        print(f"  [WARN] guard check error: {e}")
 
-    print()
-
-    # Voice pack guard
-    print("--- voice_pack_guard ---")
-    try:
-        from src.guards.voice_pack_guard import run_voice_pack_check
-        vp_dir = str(PROJECT_ROOT / "voice_packs")
-        vp_report = run_voice_pack_check(content, chapter_no=1, voice_packs_dir=vp_dir)
-        status = vp_report["status"]
-        issues = len(vp_report.get("issues", [])) or len(vp_report.get("warnings", []))
-        print(f"  Status: {status} ({issues} issues)")
-        extra = vp_report.get("extra_checks", {})
-        for check_name, check_issues in extra.items():
-            if check_issues:
-                print(f"    {check_name}: {len(check_issues)} issues")
-    except ImportError as e:
-        print(f"  [WARN] voice_pack_guard not available: {e}")
-    except Exception as e:
-        print(f"  [WARN] voice_pack_guard error: {e}")
-
-    print()
-
-    # Meme pack guard
-    print("--- meme_pack_guard ---")
-    try:
-        from src.guards.meme_pack_guard import run_meme_pack_check
-        mp_dir = str(PROJECT_ROOT / "voice_packs")
-        mp_report = run_meme_pack_check(content, chapter_no=1, meme_packs_dir=mp_dir)
-        status = mp_report["status"]
-        issues = len(mp_report.get("issues", []))
-        print(f"  Status: {status} ({issues} issues)")
-        for iss in mp_report.get("issues", [])[:5]:
-            print(f"    [{iss['code']}] {iss['message'][:80]}")
-    except ImportError as e:
-        print(f"  [WARN] meme_pack_guard not available: {e}")
-    except Exception as e:
-        print(f"  [WARN] meme_pack_guard error: {e}")
-
-    print()
     print("=" * 60)
     return 0
 
@@ -179,14 +145,12 @@ def cmd_wc(file_path: str = None):
         chapter_no = int(file_path)
         try:
             cfg_data = _load_project_config()
-            slug = cfg_data.get("default_novel_slug", "demo_novel")
+            slug = _get_default_slug()
             novels_root = resolve_path(PROJECT_ROOT, cfg_data.get("novels_root", "./novels"))
-            ch_dir = Path(novels_root) / slug / "第01卷"
-            candidates = list(ch_dir.glob(f"第{chapter_no}章*.txt"))
-            if not candidates:
-                candidates = list(ch_dir.glob(f"第{chapter_no:02d}章*.txt"))
-            if candidates:
-                fp = candidates[0]
+            ch_dir = Path(_resolve_chapter_path(slug))
+            fp = find_chapter_file(chapter_no, ch_dir)
+            if fp:
+                return 0
             else:
                 print(f"[ERROR] Chapter {chapter_no} not found in {ch_dir}")
                 return 1

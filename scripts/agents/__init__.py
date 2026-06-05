@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Multi-Agent Review Board System v0.5.5
+Multi-Agent Review Board System
 
 审稿团: 多Agent并行审稿, 只出报告不自动改正文.
 Agent 基于启发式规则 (正则+规则) 做检测, 不调用外部 LLM.
@@ -27,8 +27,9 @@ from .reader_pull_agent import ReaderPullAgent
 from .setting_agent import SettingAgent
 from .chief_editor import ChiefEditor
 from .orchestrator import AgentOrchestrator, run_agent_review
+from version import get_version
 
-__version__ = "0.5.5"
+__version__ = get_version()
 __all__ = [
     "BaseAgent",
     "ContextAgent", "VoiceAgent", "AntiAIAgent",

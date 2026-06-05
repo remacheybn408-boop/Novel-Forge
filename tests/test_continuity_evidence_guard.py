@@ -32,11 +32,11 @@ class TestContinuityEvidencePass:
 
 class TestContinuityEvidenceFail:
     def test_missing_tail_used(self):
-        """非第一章 previous_tail_used=false 应该失败"""
+        """v0.7.1: 无上章数据时 PASS 而非 FAIL（新小说/新卷前几章正常现象）"""
         content = "这是一段全新的文字，与上一章毫无关系。"
         report = run_continuity_evidence_check(5, content, prev_tail="")
         assert report["previous_tail_used"] is False
-        assert report["final_decision"] == "FAIL"
+        assert report["final_decision"] == "PASS"
 
     def test_discovery_hooks_missing(self):
         """上一章的重要发现未被承接"""

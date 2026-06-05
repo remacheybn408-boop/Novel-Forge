@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-novel.py — CLI entry point v0.6.7
+novel.py — CLI entry point v0.7.1
 
 Thin CLI parser. All command implementations live in src/cli/.
 """
@@ -20,7 +20,7 @@ from src.cli.commands_core import (
     cmd_genre, cmd_style,
 )
 from src.cli.commands_demo import cmd_demo
-from src.cli.commands_pipeline import cmd_pre, cmd_post, cmd_review, cmd_export
+from src.cli.commands_pipeline import cmd_pre, cmd_post, cmd_review, cmd_export, cmd_revise
 from src.cli.commands_agents import cmd_agents
 from src.cli.commands_memory import cmd_rag, cmd_query, cmd_learn
 from src.cli.commands_story import cmd_story
@@ -34,6 +34,10 @@ from src.cli.commands_outline import cmd_outline
 from src.cli.commands_voice import cmd_voice
 from src.cli.commands_character import cmd_character
 from src.cli.commands_texture import cmd_texture
+from src.cli.commands_context import cmd_context
+from src.cli.commands_worldbuilding import cmd_worldbuilding
+from src.cli.commands_plot_threads import cmd_plot_threads
+from src.cli.commands_promises import cmd_promises
 
 
 # ── CLI Parser ──────────────────────────────────────────────
@@ -70,11 +74,21 @@ def main():
     p_post.add_argument("--file", help="Direct chapter file path")
     p_post.add_argument("--story", action="store_true", help="Auto-generate story commit after post")
     p_post.add_argument("--no-jury", action="store_true", help="Skip auto agent jury after post")
+    p_post.add_argument("--skip-pre", action="store_true", help="Skip pre gate entirely (chapter already written)")
 
     p_review = sub.add_parser("review", help="Run guard review on a chapter")
     p_review.add_argument("chapter_no", nargs="?", help="Chapter number")
     p_review.add_argument("--slug", help="Novel slug")
     p_review.add_argument("--volume", help="Volume number")
+
+    p_revise = sub.add_parser("revise", help="修订系统: 自动改稿 (从告警→改稿→diff)")
+    p_revise.add_argument("chapter_no", nargs="?", help="Chapter number")
+    p_revise.add_argument("--mode", default="controlled", choices=["controlled", "suggest"],
+                          help="controlled=全闭环改写, suggest=仅生成任务不改写")
+    p_revise.add_argument("--approve", action="store_true",
+                          help="跳过人工确认, 自动覆盖原文 (谨慎使用)")
+    p_revise.add_argument("--slug", help="Novel slug")
+    p_revise.add_argument("--volume", help="Volume number")
 
     # report / guards / check / wc
     sub.add_parser("report", help="Show recent guard reports")
@@ -164,6 +178,7 @@ def main():
     p_outline_delete = p_outline_sub.add_parser("delete", help="删除大纲")
     p_outline_delete.add_argument("delete_id", help="大纲 ID")
     p_outline_sub.add_parser("undo", help="撤销最近一次添加")
+    p_outline_sub.add_parser("mental-scan", help="从大纲扫描角色精神状态")
 
     # story
     p_story = sub.add_parser("story", help="Story contract system")
@@ -196,19 +211,9 @@ def main():
     p_style_show.add_argument("style_id", help="Style ID")
 
     # help / menu / aliases
-    sub.add_parser("help", help="打印中文操作手册 (同 scc-help)")
     sub.add_parser("scc-help", help="打印中文操作手册")
+    sub.add_parser("help", help="打印中文操作手册 (同 scc-help)")
     sub.add_parser("menu", help="进入交互式文本菜单")
-    sub.add_parser("scc-menu", help="进入交互式文本菜单")
-    sub.add_parser("start", help="进入交互式文本菜单")
-    sub.add_parser("books", help="列出所有作品 (同 db list)")
-    sub.add_parser("outlines", help="列出所有大纲 (同 outline list)")
-    p_write = sub.add_parser("write", help="写前任务卡 (同 pre)")
-    p_write.add_argument("chapter_no", nargs="?", help="Chapter number")
-    p_submit = sub.add_parser("submit", help="写后入库 (同 post)")
-    p_submit.add_argument("chapter_no", nargs="?", help="Chapter number")
-    p_jury = sub.add_parser("jury", help="轻量审稿 (同 agents review --mode light)")
-    p_jury.add_argument("chapter_no", nargs="?", help="Chapter number")
     p_sc = sub.add_parser("stability-check", help="运行稳定性自检")
     p_sc.add_argument("--full", action="store_true", help="完整模式")
     sub.add_parser("menu-show", help="显示普通用户菜单")
@@ -286,6 +291,15 @@ def main():
     p_char_check.add_argument("--intensity", default="normal",
                               choices=["light", "normal", "strict"],
                               help="检测强度: light/normal/strict")
+    # character: mental 精神状态管理
+    p_char_mental = p_char_sub.add_parser("mental", help="角色精神状态管理（第四层）")
+    p_char_mental.add_argument("character_name", nargs="?", default="", help="角色名")
+    p_char_mental.add_argument("mental_action", nargs="?", default="show",
+                               help="操作: show/set/onset/trigger/manifest/check")
+    p_char_mental.add_argument("mental_arg1", nargs="?", default="", help="类别或章节号")
+    p_char_mental.add_argument("mental_arg2", nargs="?", default="", help="严重度或文本")
+    # character: mental-scan
+    p_char_sub.add_parser("mental-scan", help="从大纲扫描推荐角色精神状态")
     # texture 人工味质量层
     p_tx = sub.add_parser("texture", help="人工味质量层检测")
     p_tx_sub = p_tx.add_subparsers(dest="texture_action")
@@ -295,6 +309,71 @@ def main():
     p_tx_check.add_argument("--pace", default="normal",
                           choices=["breathing","setup","normal","accelerate","climax"],
                           help="章节速度: breathing/setup/normal/accelerate/climax")
+    # worldbuilding 世界观管理
+    p_wb = sub.add_parser("worldbuilding", help="世界观管理")
+    p_wb_sub = p_wb.add_subparsers(dest="worldbuilding_action")
+    p_wb_sub.add_parser("list", help="列出所有世界观条目")
+    p_wb_show = p_wb_sub.add_parser("show", help="查看完整世界观条目")
+    p_wb_show.add_argument("title", help="条目标题")
+    p_wb_add = p_wb_sub.add_parser("add", help="添加世界观条目")
+    p_wb_add.add_argument("title", help="条目标题")
+    p_wb_add.add_argument("--category", default="", help="分类 (如 地理/修炼体系)")
+    p_wb_add.add_argument("--content", default="", help="详细描述")
+    p_wb_add.add_argument("--importance", type=int, default=3, choices=range(1, 6), help="重要度 1-5")
+    p_wb_add.add_argument("--tags", default="", help="逗号分隔标签")
+    p_wb_edit = p_wb_sub.add_parser("edit", help="编辑世界观条目")
+    p_wb_edit.add_argument("title", help="条目标题")
+    p_wb_edit.add_argument("field", help="字段名 (category/content/importance/tags)")
+    p_wb_edit.add_argument("value", help="字段值")
+    p_wb_delete = p_wb_sub.add_parser("delete", help="删除世界观条目")
+    p_wb_delete.add_argument("title", help="条目标题")
+    p_wb_sub.add_parser("outline-scan", help="从大纲扫描世界观关键词")
+    # plot-threads 情节线管理
+    p_pt = sub.add_parser("plot-threads", help="情节线管理")
+    p_pt_sub = p_pt.add_subparsers(dest="plot_threads_action")
+    p_pt_sub.add_parser("list", help="列出所有情节线索")
+    p_pt_show = p_pt_sub.add_parser("show", help="查看完整情节线索")
+    p_pt_show.add_argument("title", help="线索名称")
+    p_pt_create = p_pt_sub.add_parser("create", help="创建情节线索")
+    p_pt_create.add_argument("title", help="线索名称")
+    p_pt_create.add_argument("--type", dest="thread_type", default="伏笔", help="类型 (伏笔/主线/支线/感情线/成长线)")
+    p_pt_create.add_argument("--content", default="", help="详细描述")
+    p_pt_create.add_argument("--importance", type=int, default=3, choices=range(1, 6), help="重要度 1-5")
+    p_pt_create.add_argument("--chapter", type=int, default=None, help="起始章号")
+    p_pt_edit = p_pt_sub.add_parser("edit", help="编辑情节线索")
+    p_pt_edit.add_argument("title", help="线索名称")
+    p_pt_edit.add_argument("field", help="字段名 (thread_type/content/importance/introduced_chapter/resolved_chapter)")
+    p_pt_edit.add_argument("value", help="字段值")
+    p_pt_close = p_pt_sub.add_parser("close", help="标记线索已完结")
+    p_pt_close.add_argument("title", help="线索名称")
+    p_pt_close.add_argument("--chapter", type=int, default=None, help="完结章号")
+    p_pt_advance = p_pt_sub.add_parser("advance", help="标记某章推进了该线索")
+    p_pt_advance.add_argument("chapter_no", help="章号")
+    p_pt_advance.add_argument("title", help="线索名称")
+    p_pt_sub.add_parser("timeline", help="线索时间线")
+    # promises 读者承诺管理
+    p_pr = sub.add_parser("promises", help="读者承诺管理")
+    p_pr_sub = p_pr.add_subparsers(dest="promises_action")
+    p_pr_list = p_pr_sub.add_parser("list", help="列出读者承诺")
+    p_pr_list.add_argument("--status", default="open", choices=["open", "all"], help="过滤状态 (默认 open)")
+    p_pr_add = p_pr_sub.add_parser("add", help="添加读者承诺")
+    p_pr_add.add_argument("description", help="承诺描述")
+    p_pr_add.add_argument("--chapter", type=int, default=None, help="提出章号")
+    p_pr_add.add_argument("--importance", type=int, default=3, choices=range(1, 6), help="重要度 1-5")
+    p_pr_fulfill = p_pr_sub.add_parser("fulfill", help="标记承诺已兑现")
+    p_pr_fulfill.add_argument("id", help="承诺 ID")
+    p_pr_fulfill.add_argument("chapter_no", help="兑现章号")
+    p_pr_break = p_pr_sub.add_parser("break", help="标记承诺已作废")
+    p_pr_break.add_argument("id", help="承诺 ID")
+    p_pr_check = p_pr_sub.add_parser("check", help="检查长期未兑现的承诺")
+    p_pr_check.add_argument("--threshold", type=int, default=20, help="章数阈值 (默认 20)")
+    # context 章节上下文管理
+    p_ctx = sub.add_parser("context", help="章节上下文管理")
+    p_ctx_sub = p_ctx.add_subparsers(dest="context_action")
+    p_ctx_show = p_ctx_sub.add_parser("show", help="查看某章上下文")
+    p_ctx_show.add_argument("chapter_no", nargs="?", default=None, help="章节号（默认最新）")
+    p_ctx_sub.add_parser("pack", help="生成全部章节压缩包")
+    p_ctx_sub.add_parser("gap", help="检测上下文断层")
 
     # ── Dispatch ────────────────────────────────────────────
     args = parser.parse_args()
@@ -307,16 +386,7 @@ def main():
         print("  你现在可以：")
         print()
         print("  0. 首次使用   →  python novel.py setup     # 设置小说文件夹")
-        print("  1. 交互菜单   →  python novel.py start")
-        print("  2. 检查环境   →  python novel.py status")
-        print("  3. 添加大纲   →  python novel.py outline add")
-        print("  4. 查看作品   →  python novel.py books")
-        print("  5. 开始写作   →  python novel.py write 1")
-        print("  6. 审稿       →  python novel.py jury 1")
-        print("  7. 导出小说   →  python novel.py export --slug demo_novel")
-        print("  8. 运行演示   →  python novel.py demo")
-        print()
-        print("  详细帮助 →  python novel.py scc-help")
+        print("  详细帮助 →  python novel.py help")
         print("  交互菜单 →  python novel.py menu")
         print("=" * 50)
         return
@@ -338,9 +408,16 @@ def main():
             getattr(args, "volume", None),
             getattr(args, "file", None),
             getattr(args, "story", False),
-            getattr(args, "no_jury", False))),
+            getattr(args, "no_jury", False),
+            getattr(args, "skip_pre", False))),
         "review": lambda: sys.exit(cmd_review(
             getattr(args, "chapter_no", None),
+            getattr(args, "slug", None),
+            getattr(args, "volume", None))),
+        "revise": lambda: sys.exit(cmd_revise(
+            getattr(args, "chapter_no", None),
+            getattr(args, "mode", "controlled"),
+            getattr(args, "approve", False),
             getattr(args, "slug", None),
             getattr(args, "volume", None))),
         "report": lambda: sys.exit(cmd_report()),
@@ -361,28 +438,17 @@ def main():
         "scc-help": lambda: sys.exit(cmd_scc_help()),
         "help": lambda: sys.exit(cmd_scc_help()),
         "menu": lambda: sys.exit(cmd_menu()),
-        "scc-menu": lambda: sys.exit(cmd_menu()),
-        "start": lambda: sys.exit(cmd_menu()),
-        "books": lambda: sys.exit(cmd_db(argparse.Namespace(db_action="list"))),
-        "outlines": lambda: cmd_outline(argparse.Namespace(outline_action="list")),
-        "write": lambda: sys.exit(cmd_pre(getattr(args, "chapter_no", None), None, None)),
-        "submit": lambda: sys.exit(cmd_post(getattr(args, "chapter_no", None), None, None, None, False, False)),
         "stability-check": lambda: sys.exit(cmd_stability_check(args)),
         "menu-show": lambda: sys.exit(cmd_menu_show()),
         "menu-text": lambda: sys.exit(cmd_menu_text()),
         "voice": lambda: sys.exit(cmd_voice(args)),
         "character": lambda: sys.exit(cmd_character(args)),
         "texture": lambda: sys.exit(cmd_texture(args)),
+        "context": lambda: sys.exit(cmd_context(args)),
+        "worldbuilding": lambda: sys.exit(cmd_worldbuilding(args)),
+        "plot-threads": lambda: sys.exit(cmd_plot_threads(args)),
+        "promises": lambda: sys.exit(cmd_promises(args)),
     }
-
-    if args.command == "jury":
-        ch = getattr(args, "chapter_no", None)
-        if not ch:
-            print("用法: python novel.py jury <章节号>")
-            sys.exit(1)
-        ns = argparse.Namespace(agents_action="review", chapter_no=ch, mode="light",
-                                slug=None, genre=None, style=None)
-        sys.exit(cmd_agents(ns))
 
     if args.command in dispatch:
         dispatch[args.command]()

@@ -2,6 +2,7 @@
 """Test revision_diff_report — 改稿对比报告测试"""
 import sys, json
 from pathlib import Path
+from version import get_version
 from scripts.revision_diff_report import (
     generate_diff_report, compute_diff_summary,
     generate_risk_flags, split_paragraphs
@@ -23,7 +24,7 @@ def test_generate_diff_report():
         {"task_id": "rev_001", "paragraph_start": 2, "paragraph_end": 2,
          "change_type": "rewrite_range", "reason": "补代价"}]}
     report = generate_diff_report(source, revised, log)
-    assert report["version"] == "v0.4.0"
+    assert report["version"] == get_version()
     assert report["summary"]["changed_paragraphs"] >= 1
     assert report["recommendation"] in ("REVIEW_BEFORE_ACCEPT", "REVIEW_CAREFULLY", "REVISION_REJECTED")
 
@@ -46,7 +47,7 @@ def test_risk_flags_detect_quote_loss():
 
 def test_empty_reports_handled():
     report = generate_diff_report("", "", {"source": "", "output": "", "changed_ranges": []})
-    assert report["version"] == "v0.4.0"
+    assert report["version"] == get_version()
 
 
 if __name__ == "__main__":

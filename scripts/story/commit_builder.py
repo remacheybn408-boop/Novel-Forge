@@ -3,6 +3,8 @@ import json
 from pathlib import Path
 from datetime import datetime
 
+from scripts.story.contract_builder import load_characters
+
 STORY_DIR = ".story"
 
 
@@ -88,7 +90,7 @@ def update_memory_from_commit(project_root: Path, commit: dict):
 
     # Update character states
     chars_file = memory / "characters.json"
-    chars = json.loads(chars_file.read_text(encoding="utf-8")) if chars_file.exists() else []
+    chars = load_characters(_resolve_story(project_root))
     for name, change in commit.get("character_state_changes", {}).items():
         found = False
         for c in chars:

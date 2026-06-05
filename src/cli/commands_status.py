@@ -216,6 +216,52 @@ def check_readme_version() -> bool:
         return False
 
 
+def _check_novel_volumes() -> bool:
+    """显示活跃 slot 的小说卷字数统计。"""
+    try:
+        ws = PROJECT_ROOT / "workspace"
+        reg_file = ws / "registry.json"
+        if not reg_file.exists():
+            return False
+        reg = json.loads(reg_file.read_text(encoding="utf-8"))
+        active = reg.get("active_slot", "")
+        if not active:
+            return False
+        db_path = ws / active / "novel.db"
+        if not db_path.exists():
+            return False
+
+        conn = sqlite3.connect(str(db_path))
+        # Get novel title
+        novel = conn.execute("SELECT title, slug FROM novels LIMIT 1").fetchone()
+        if not novel:
+            conn.close()
+            return False
+        title = novel[0] or novel[1]
+        # Get all volumes with chapter counts and word counts
+        vols = conn.execute(
+            "SELECT v.volume_no, v.title, COUNT(c.id), COALESCE(SUM(c.word_count), 0) "
+            "FROM volumes v LEFT JOIN chapters c ON c.volume_id = v.id "
+            "WHERE v.novel_id = (SELECT id FROM novels LIMIT 1) "
+            "GROUP BY v.id ORDER BY v.volume_no"
+        ).fetchall()
+        conn.close()
+
+        print(f"\n  {active} ({title})")
+        total_chs = 0
+        total_wc = 0
+        for v in vols:
+            v_no, v_title, ch_count, wc = v
+            v_label = v_title or f"第{v_no}卷"
+            print(f"    {v_label}: {ch_count}章 / {wc:,}字")
+            total_chs += ch_count or 0
+            total_wc += wc or 0
+        print(f"    总计:   {total_chs}章 / {total_wc:,}字")
+        return True
+    except Exception:
+        return False
+
+
 def main() -> int:
     print("=" * 56)
     print(f"  Novel Forge — Health Check {get_version()}")
@@ -247,6 +293,8 @@ def main() -> int:
         for name, passed in results.items():
             if not passed:
                 print(f"    - {name}: WARN")
+
+    _check_novel_volumes()
 
     print("-" * 56)
 

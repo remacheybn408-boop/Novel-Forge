@@ -15,9 +15,10 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-# 将 scripts 目录加入 path 以便导入 fts_health
-_SCRIPT_DIR = Path(__file__).resolve().parent.parent
-if str(_SCRIPT_DIR) not in sys.path:
+SCRIPT_DIR = Path(__file__).resolve().parent
+SCRIPTS_ROOT = SCRIPT_DIR.parent
+if str(SCRIPTS_ROOT) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS_ROOT))
 
 from fts_health import safe_fts_search
 

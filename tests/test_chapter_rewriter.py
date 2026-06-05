@@ -2,6 +2,7 @@
 """Test chapter_rewriter — 章节改稿器测试"""
 import sys, json, tempfile, os
 from pathlib import Path
+from version import get_version
 from scripts.chapter_rewriter import (
     rewrite_paragraphs, generate_rewrite_log,
     split_paragraphs, _apply_revision
@@ -53,7 +54,7 @@ def test_generate_rewrite_log():
     log = generate_rewrite_log("src.txt", "out.txt", [], 10)
     assert log["auto_overwrite_source"] is False
     assert log["auto_ingest_revised"] is False
-    assert log["version"] == "v0.4.0"
+    assert log["version"] == get_version()
 
 
 def test_locked_paragraphs_untouched():

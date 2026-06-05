@@ -34,6 +34,7 @@ def normalize_config(raw: dict | None) -> dict:
     cfg.setdefault("outputs_root", paths.get("outputs_root", "./outputs"))
     cfg.setdefault("tmp_root", paths.get("tmp_root", "./tmp"))
 
+    cfg.setdefault("allow_short_chapter", gates.get("allow_short_chapter", False))
     cfg.setdefault("default_novel_slug", novel.get("default_slug", "demo_novel"))
     cfg.setdefault("default_novel_title", novel.get("default_title", "Demo Novel"))
     cfg.setdefault("default_genre", cfg.get("default_genre", "xianxia"))

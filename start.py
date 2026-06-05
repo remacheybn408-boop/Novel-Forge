@@ -64,7 +64,7 @@ def start_frontend():
 
 def main():
     print("=" * 50)
-    print("  Novel Forge v0.6.5")
+    print("  Novel Forge v0.7.1")
     print("=" * 50)
     print()
 

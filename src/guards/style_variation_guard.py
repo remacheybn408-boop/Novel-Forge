@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-style_variation_guard.py — 句式变化门禁 v0.4.0
+style_variation_guard.py — 句式变化门禁
 
 防止章节内句式过于统一、模式化。
 检查项：
@@ -19,6 +19,7 @@ style_variation_guard.py — 句式变化门禁 v0.4.0
 import re, json, sys, argparse, statistics
 from pathlib import Path
 from collections import Counter
+from version import get_version
 
 
 # ═══════════════════════════════════════════════════
@@ -167,7 +168,7 @@ def build_report(text: str, chapter_no: int = 1) -> dict:
     if not sentences:
         return {
             "guard": "style_variation_guard",
-            "version": "v0.4.0",
+            "version": get_version(),
             "status": "PASS",
             "chapter_no": chapter_no,
             "sentence_opening_variety": 1.0,
@@ -256,7 +257,7 @@ def build_report(text: str, chapter_no: int = 1) -> dict:
 
     return {
         "guard": "style_variation_guard",
-        "version": "v0.4.0",
+        "version": get_version(),
         "status": status,
         "chapter_no": chapter_no,
         "sentence_opening_variety": opening_info,

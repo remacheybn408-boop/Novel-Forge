@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-dialogue_naturalness_guard.py — 对白自然度门禁 v0.4.0
+dialogue_naturalness_guard.py — 对白自然度门禁
 
 防止所有角色像AI一样用完整句子解释事物。
 检查每个对白场景中的自然度指标：
@@ -19,6 +19,7 @@ dialogue_naturalness_guard.py — 对白自然度门禁 v0.4.0
 import re, json, sys, argparse, statistics
 from pathlib import Path
 from collections import Counter
+from version import get_version
 
 
 # ═══════════════════════════════════════════════════
@@ -240,7 +241,7 @@ def build_report(text: str, chapter_no: int = 1) -> dict:
     if not dialogue_lines:
         return {
             "guard": "dialogue_naturalness_guard",
-            "version": "v0.4.0",
+            "version": get_version(),
             "status": "PASS",
             "chapter_no": chapter_no,
             "dialogue_naturalness_score": 1.0,
@@ -339,7 +340,7 @@ def build_report(text: str, chapter_no: int = 1) -> dict:
 
     return {
         "guard": "dialogue_naturalness_guard",
-        "version": "v0.4.0",
+        "version": get_version(),
         "status": status,
         "chapter_no": chapter_no,
         "dialogue_naturalness_score": naturalness_score,

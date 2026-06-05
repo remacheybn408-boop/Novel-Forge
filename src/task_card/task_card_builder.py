@@ -166,6 +166,43 @@ def get_open_promises(conn: sqlite3.Connection, novel_id: int) -> list[str]:
         return []
 
 
+def get_character_relations() -> list[dict]:
+    """Get all character relationships from the active slot's database."""
+    try:
+        ws_dir = PROJECT_ROOT / "workspace"
+        reg_file = ws_dir / "registry.json"
+        if not reg_file.exists():
+            return []
+        reg = json.loads(reg_file.read_text(encoding="utf-8"))
+        active = reg.get("active_slot", "")
+        if not active:
+            return []
+        db_path = ws_dir / active / "novel.db"
+        if not db_path.exists():
+            return []
+        import sqlite3
+        conn = sqlite3.connect(str(db_path))
+        cur = conn.execute("SELECT char_a, char_b, relation_type FROM character_relationships")
+        rows = cur.fetchall()
+        conn.close()
+        return [{"char_a": r[0], "char_b": r[1], "type": r[2]} for r in rows]
+    except Exception:
+        return []
+
+
+def get_jury_feedback(chapter_no: int) -> dict | None:
+    """Load previous chapter's agent_review.json for jury feedback."""
+    if chapter_no <= 1:
+        return None
+    jury_path = PROJECT_ROOT / "reports" / "agent_reviews" / f"chapter_{chapter_no - 1:03d}_agent_review.json"
+    if not jury_path.exists():
+        return None
+    try:
+        return json.loads(jury_path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+
 def build_task_card(chapter_no: int, config: dict, slug: str) -> str:
     """Build full task card markdown."""
     db_path = get_db_path(config)
@@ -181,6 +218,7 @@ def build_task_card(chapter_no: int, config: dict, slug: str) -> str:
     plan = get_chapter_plan(conn, novel_id, chapter_no)
     prev_end = get_prev_chapter_end(conn, novel_id, chapter_no)
     prev_summary = get_prev_chapter_summary(conn, novel_id, chapter_no)
+    jury = get_jury_feedback(chapter_no)
 
     title_line = plan["planned_title"] if plan and plan.get("planned_title") else f"第{chapter_no}章"
 
@@ -223,6 +261,23 @@ def build_task_card(chapter_no: int, config: dict, slug: str) -> str:
     else:
         lines.append("> [WARN] 未找到本章大纲数据 (chapter_plans 表可能为空)")
     lines.append("")
+
+    # ═══════════ 角色关系 ═══════════
+    relations = get_character_relations()
+    if relations:
+        char_rels = {}
+        for r in relations:
+            a, b, t = r["char_a"], r["char_b"], r["type"]
+            char_rels.setdefault(a, {}).setdefault(t, []).append(b)
+            char_rels.setdefault(b, {}).setdefault(t, []).append(a)
+        if char_rels:
+            lines.append("## 角色关系")
+            lines.append("")
+            for cname in sorted(char_rels.keys()):
+                for rtype, others in char_rels[cname].items():
+                    others_str = "、".join(others)
+                    lines.append(f"- {cname} ←{rtype}→ {others_str}")
+            lines.append("")
 
     # ═══════════ 3. 必须承接 ═══════════
     lines.append("## 3. 必须承接 (连续性要求)")
@@ -282,8 +337,73 @@ def build_task_card(chapter_no: int, config: dict, slug: str) -> str:
         lines.append("- **结尾钩子:** 章末必须留悬念、提问或未完成动作，不可用 \"他继续修炼\" 结尾")
     lines.append("")
 
-    # ═══════════ 6. 审稿重点 ═══════════
-    lines.append("## 6. 审稿重点 (post 阶段检查)")
+    # ═══════════ 6. 上章审稿意见 ═══════════
+    if jury and jury.get("chief_editor"):
+        ce = jury.get("chief_editor", {})
+        prev_ch = chapter_no - 1
+        lines.append(f"## 6. 上章审稿意见（第{prev_ch}章）")
+        lines.append(f"")
+        lines.append(f"> 综合评分: {jury.get('overall_score', '?')} | 状态: {jury.get('status', '?')}")
+        lines.append(f"")
+        must_fix = ce.get("must_fix", [])
+        should_fix = ce.get("should_fix", [])
+        if must_fix:
+            lines.append(f"**🔴 建议优先处理 ({len(must_fix)}项):**")
+            lines.append("")
+            for i, item in enumerate(must_fix, 1):
+                msg = item.get("message", "")
+                sug = item.get("suggestion", "")
+                lines.append(f"{i}. {msg}")
+                if sug:
+                    lines.append(f"   → {sug}")
+            lines.append("")
+        if should_fix:
+            lines.append(f"**🟡 值得关注 ({len(should_fix)}项):**")
+            lines.append("")
+            for i, item in enumerate(should_fix, 1):
+                msg = item.get("message", "")
+                sug = item.get("suggestion", "")
+                lines.append(f"{i}. {msg}")
+                if sug:
+                    lines.append(f"   → {sug}")
+            lines.append("")
+        # Agent quality indicators
+        agents = jury.get("agents", {})
+        if agents:
+            q_items = []
+            if isinstance(agents, list):
+                for ag in agents:
+                    if isinstance(ag, dict):
+                        score = ag.get("score")
+                        ag_name = ag.get("agent", "")
+                        if score is not None and isinstance(score, (int, float)):
+                            icon = "✅" if score >= 70 else ("⚠️" if score >= 50 else "❌")
+                            short = ag_name.replace("_agent", "").replace("_guard", "").replace("_", " ")
+                            q_items.append(f"{icon} {short}={score}")
+            elif isinstance(agents, dict):
+                for ag_name, ag_data in agents.items():
+                    if isinstance(ag_data, dict):
+                        score = ag_data.get("score", ag_data.get("overall_score"))
+                        if score is not None and isinstance(score, (int, float)):
+                            icon = "✅" if score >= 70 else ("⚠️" if score >= 50 else "❌")
+                            short = ag_name.replace("_agent", "").replace("_guard", "").replace("_", " ")
+                            q_items.append(f"{icon} {short}={score}")
+            if q_items:
+                lines.append("**📊 质量指标:**")
+                lines.append("")
+                lines.append(" | ".join(q_items))
+                lines.append("")
+        if not must_fix and not should_fix:
+            lines.append("✅ 无问题，上章质量良好")
+            lines.append("")
+    elif chapter_no > 1:
+        lines.append("## 6. 上章审稿意见")
+        lines.append("")
+        lines.append("> [WARN] 上章尚无审稿意见 — 建议先运行 `post`/`review`")
+        lines.append("")
+
+    # ═══════════ 7. 审稿重点 ═══════════
+    lines.append("## 7. 审稿重点 (post 阶段检查)")
     lines.append("")
     lines.append("- 字数是否在合理范围？")
     lines.append("- 是否承接了上章结尾的状态/钩子？")

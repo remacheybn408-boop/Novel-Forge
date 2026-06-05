@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-editor_revision_guard.py — 拟人审稿痕迹门禁 v0.4.0
+editor_revision_guard.py — 拟人审稿痕迹门禁
 
 检测章节是"初稿质感"还是"改过稿质感"。
 通过段落句长分布、碎片句、句首变化等指标判断：
@@ -14,6 +14,7 @@ editor_revision_guard.py — 拟人审稿痕迹门禁 v0.4.0
 import re, json, sys, argparse, statistics
 from pathlib import Path
 from typing import List, Dict, Tuple
+from version import get_version
 
 
 # ═══════════════════════════════════════════════════
@@ -227,7 +228,7 @@ def run_editor_revision_check(content: str, chapter_no: int) -> dict:
 
     report = {
         "guard": "editor_revision_guard",
-        "version": "v0.4.0",
+        "version": get_version(),
         "status": status,
         "revision_texture_score": texture_score,
         "over_explained_count": over_result["over_explained_count"],

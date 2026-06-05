@@ -6,6 +6,22 @@ from datetime import datetime
 STORY_DIR = ".story"
 
 
+def load_characters(story: Path) -> list[dict]:
+    """Load characters.json normalized to list[dict] format.
+
+    Handles both list-of-dicts and nested-dict (name-keyed) formats.
+    """
+    chars_file = story / "memory" / "characters.json"
+    if not chars_file.exists():
+        return []
+    data = json.loads(chars_file.read_text(encoding="utf-8"))
+    if isinstance(data, list):
+        return data
+    if isinstance(data, dict):
+        return [{"name": name, **char_data} for name, char_data in data.items()]
+    return []
+
+
 def _resolve_story(project_root):
     try:
         ws_dir = project_root / 'workspace'
@@ -31,7 +47,12 @@ def build_contract(project_root: Path, chapter_no: int, chapter_title: str = "",
     ms = json.loads((story / "master_setting.json").read_text(encoding="utf-8"))
 
     # Load memory
-    characters = json.loads((story / "memory" / "characters.json").read_text(encoding="utf-8"))
+    char_data = json.loads((story / "memory" / "characters.json").read_text(encoding="utf-8"))
+    # Support both list-of-dicts (new) and dict-keyed-by-name (old) formats
+    if isinstance(char_data, dict):
+        characters = [{"name": k, **(v if isinstance(v, dict) else {})} for k, v in char_data.items()]
+    else:
+        characters = char_data
     promises = json.loads((story / "memory" / "promises.json").read_text(encoding="utf-8"))
     world_facts = json.loads((story / "memory" / "world_facts.json").read_text(encoding="utf-8"))
     rules = json.loads((story / "memory" / "learned_rules.json").read_text(encoding="utf-8"))

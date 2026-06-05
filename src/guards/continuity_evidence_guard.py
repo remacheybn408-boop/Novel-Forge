@@ -329,7 +329,13 @@ def run_continuity_evidence_check(chapter_no, content, prev_chapter_no=None,
         evidence_score >= 0.65
     )
 
-    final_decision = "PASS" if previous_chapter_link_passed else "FAIL"
+    # v0.7.1: 无上章数据时不判定 FAIL（新小说/新卷前几章正常现象）
+    if not previous_tail_used:
+        final_decision = "PASS"
+    elif previous_chapter_link_passed:
+        final_decision = "PASS"
+    else:
+        final_decision = "FAIL"
 
     # ── Warnings ──
     warnings = []

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-revision_loop_controller.py — 自动改稿闭环控制器 v0.4.0
+revision_loop_controller.py — 自动改稿闭环控制器
 
 串联完整流程:
   final_submission_report → revision_tasks → patch_plan
@@ -20,11 +20,12 @@ revision_loop_controller.py — 自动改稿闭环控制器 v0.4.0
 import json, sys, argparse, os
 from pathlib import Path
 from typing import Optional
+from version import get_version
 
 
 DEFAULT_CONFIG = {
     "enabled": True,
-    "version": "v0.4.0",
+    "version": get_version(),
     "default_mode": "controlled",
     "max_rounds": 2,
     "auto_overwrite_source": False,

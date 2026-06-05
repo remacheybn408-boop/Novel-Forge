@@ -44,7 +44,6 @@ novels/
 # Generated output
 tmp/
 *.tmp
-*.log
 outputs/
 reports/
 examples/novels/
@@ -52,17 +51,8 @@ examples/novels/
 workspace/
 
 # 运行产物（不入发布包）
-config.json
-workspace/
-exports/
-outputs/
-novels/
-tmp/
-data/
-reports/
 frontend/
 api/
 requirements-api.txt
 requirements-rag.txt
-.story/
 一键启动.bat

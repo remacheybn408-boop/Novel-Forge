@@ -1,16 +1,16 @@
-# Novel Forge — 小说引擎 v0.6.7
+# Novel Forge — 小说引擎 v0.7.1
 
 [![Test](https://github.com/remacheybn408-boop/Novel-Forge/actions/workflows/test.yml/badge.svg?branch=master)](https://github.com/remacheybn408-boop/Novel-Forge/actions/workflows/test.yml)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT%20OR%20GPL--3.0-green)
-![Version](https://img.shields.io/badge/version-v0.6.7-orange)
+![Version](https://img.shields.io/badge/version-v0.7.1-orange)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
 
 轻量小说工程化写作流水线——专注长篇小说的连续性、角色口吻一致性、AI 腔检测、防幻觉、写前任务卡和写后质量报告。
 
 ---
 
-## v0.6.7 核心能力
+## v0.7.1 核心能力
 
 | # | 能力 | 说明 |
 |---|------|------|
@@ -22,10 +22,10 @@
 | 6 | **三端适配** | Windows / macOS / Linux，Shell 脚本 + 跨平台路径检测 |
 | 7 | **发布稳定性检查** | `stability-check --full` 一键验收，覆盖版本号、pytest、demo 全流程、cross-platform |
 | 8 | **人工味质量层 (Human Texture)** | 8 个质量 guard 自动运行：水文检测、剧情进度控制、陈词滥句、冲突压力、情绪总结、生活质感、节奏、声音多样性 |
-| 9 | **题材阈值预设** | 9 种题材独立阈值，`--genre xianxia --pace slow` 参数调优 |
+| 9 | **题材阈值预设** | 13 种题材独立阈值，`--genre xianxia --pace slow` 参数调优 |
 | 10 | **角色综合管理** | 角色声纹卡 / 性格配置 / 做事风格，`python novel.py voice|character|texture` |
 | 11 | **Genre/Style Pack 预设** | 13 种 genre + 8 种 style 写作预设，`novel.py genre|style` 查看 |
-| 12 | **sys.path.insert 清零** | 60+ 处 path 注入全部清除，改为 pip install -e . 正规包导入 |
+| 12 | **MCP 中文菜单桥接层** | 10 个安全 MCP 工具，AI 客户端通过中文直接操作引擎（`novel_menu`/`novel_status`/`novel_agents_review`/`novel_export_txt` 等），零命令、零路径暴露 |
 
 ---
 
@@ -53,7 +53,7 @@ python novel.py demo
 
 # 日常写作
 python novel.py pre 1             # 写前任务卡
-python novel.py post 1            # 入库 + 21 Guard 门禁
+python novel.py post 1            # 入库 + 22 Guard 门禁
 python novel.py agents review 1 --mode full  # 18 Agent 审稿
 
 # 发布验收
@@ -74,7 +74,7 @@ pre（写前任务卡）      ← 读取上章结尾 + SQLite 上下文
     ↓
 写作（按任务卡生成正文）
     ↓
-post（21 Guard 门禁） ← 幻觉 / 连续性 / AI腔 / 口吻 / 标点等
+post（22 Guard 门禁） ← 幻觉 / 连续性 / AI腔 / 口吻 / 标点等
     ↓
 agents review（可选）  ← 18 Agent + Chief Editor 审稿
     ↓
@@ -91,7 +91,7 @@ ingest to SQLite       ← 入库 + 切片 + FTS + 摘要
 
 | 体系 | 数量 | 触发方式 | 职责 |
 |------|------|---------|------|
-| **Guard 门禁** | 21 个精确规则 | post 自动运行 | 拦截硬性错误：幻觉、连续性断裂、AI 腔、破折号超标 |
+| **Guard 门禁** | 22 个精确规则 | post 自动运行 | 拦截硬性错误：幻觉、连续性断裂、AI 腔、破折号超标 |
 | **Agent 陪审团** | 18 个自然度 Agent | 手动 `agents review` | 评估软性质量：动作自然度、潜台词、情绪递进、场景落地、节奏呼吸 |
 | **发布前陪审团** | 20 个配置 Agent | 发布前审稿 | 风险分级、主编汇总、must_fix / should_fix / keep 分类 |
 
@@ -184,7 +184,7 @@ src/
 │   ├── commands_outline.py      ← 大纲管理
 │   ├── commands_menu.py         ← 菜单/帮助
 │   └── commands_status.py       ← 状态诊断
-├── guards/                      ← 21 个门禁规则模块
+├── guards/                      ← 22 个门禁规则模块
 ├── task_card/                   ← 写前任务卡
 ├── voice/                       ← Voice Pack 加载器
 ├── meme/                        ← Meme Pack 加载器
@@ -201,7 +201,7 @@ configs/
 ├── agents.yaml                  ← Agent 陪审团配置
 └── jury/agents/                 ← 陪审团配置库
 
-tests/                           ← 296 个测试用例
+tests/                           ← 300 个测试用例
 voice_packs/                     ← 声纹包
 genre_packs/                     ← 题材模板
 style_packs/                     ← 风格模板

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-compliance_selfcheck_guard.py — 投稿合规自查门禁 v0.4.0
+compliance_selfcheck_guard.py — 投稿合规自查门禁
 
 唯一可以输出 BLOCK 状态的门禁。
 检查中文文本中的平台合规风险。
@@ -25,6 +25,7 @@ high → BLOCK, medium → WARNING, low → PASS
 import re, json, sys, argparse
 from pathlib import Path
 from typing import Dict, List, Tuple
+from version import get_version
 
 
 # ═══════════════════════════════════════════════════
@@ -243,7 +244,7 @@ def build_report(text: str, chapter_no: int = 1) -> dict:
 
     return {
         "guard": "compliance_selfcheck_guard",
-        "version": "v0.4.0",
+        "version": get_version(),
         "status": status,
         "chapter_no": chapter_no,
         "risks": {

@@ -38,7 +38,7 @@ echo "[OK] Python $PYVER"
 MINOR=$($PYTHON -c "import sys; print(sys.version_info.minor)")
 MAJOR=$($PYTHON -c "import sys; print(sys.version_info.major)")
 if [ "$MAJOR" -lt 3 ] || { [ "$MAJOR" -eq 3 ] && [ "$MINOR" -lt 8 ]; }; then
-  echo "[ERROR] Python 3.8+ required, found $PYVER"
+  echo "[ERROR] Python 3.10+ required, found $PYVER"
   exit 1
 fi
 

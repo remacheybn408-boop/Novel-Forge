@@ -93,42 +93,66 @@ def get_chapters(
     novel_id: int,
     from_ch: int = 1,
     to_ch: int | None = None,
+    chapters_dir: str | Path | None = None,
 ) -> list[dict]:
-    """Get chapters for a novel, ordered by chapter_no."""
+    """Get chapters for a novel, ordered by chapter_no. Includes volume_no for cross-volume export.
+
+    If content is empty in DB, tries to read from chapter files on disk
+    (when chapters_dir is provided).
+    """
     try:
         if to_ch is not None:
             cur = conn.execute(
-                """SELECT chapter_no, title, content, word_count, status
-                   FROM chapters
-                   WHERE novel_id = ? AND chapter_no >= ? AND chapter_no <= ?
-                   ORDER BY chapter_no ASC""",
+                """SELECT c.chapter_no, c.title, c.content, c.word_count, c.status,
+                          COALESCE(v.volume_no, 1) as volume_no
+                   FROM chapters c
+                   LEFT JOIN volumes v ON v.id = c.volume_id
+                   WHERE c.novel_id = ? AND c.chapter_no >= ? AND c.chapter_no <= ?
+                   ORDER BY c.chapter_no ASC""",
                 (novel_id, from_ch, to_ch),
             )
         else:
             cur = conn.execute(
-                """SELECT chapter_no, title, content, word_count, status
-                   FROM chapters
-                   WHERE novel_id = ? AND chapter_no >= ?
-                   ORDER BY chapter_no ASC""",
+                """SELECT c.chapter_no, c.title, c.content, c.word_count, c.status,
+                          COALESCE(v.volume_no, 1) as volume_no
+                   FROM chapters c
+                   LEFT JOIN volumes v ON v.id = c.volume_id
+                   WHERE c.novel_id = ? AND c.chapter_no >= ?
+                   ORDER BY c.chapter_no ASC""",
                 (novel_id, from_ch),
             )
-        return [
-            {
+        result = []
+        for row in cur.fetchall():
+            content = row[2] or ""
+            # Fallback: read from chapter file if DB content is empty
+            if not content.strip() and chapters_dir:
+                ch_dir = Path(chapters_dir)
+                if ch_dir.exists():
+                    ch_fp = _find_chapter_file_export(row[0], ch_dir)
+                    if not ch_fp:
+                        # v0.8.0: check volume subdirectories
+                        for vd in sorted(ch_dir.glob("第*卷")):
+                            ch_fp = _find_chapter_file_export(row[0], vd)
+                            if ch_fp:
+                                break
+                    if ch_fp:
+                        content = ch_fp.read_text(encoding="utf-8")
+            result.append({
                 "chapter_no": row[0],
                 "title": row[1] or f"第{row[0]}章",
-                "content": row[2] or "",
+                "content": content,
                 "word_count": row[3] or 0,
                 "status": row[4] or "draft",
-            }
-            for row in cur.fetchall()
-        ]
+                "volume_no": row[5] if len(row) > 5 else 1,
+            })
+        return result
     except Exception as e:
         print(f"[ERROR] Failed to query chapters: {e}", file=sys.stderr)
         return []
 
 
 def build_txt(chapters: list[dict], novel_title: str, separator: str = "\n\n---\n\n") -> str:
-    """Build a plain-text export."""
+    """Build a plain-text export with volume separators when crossing volumes."""
     lines = []
     lines.append(novel_title)
     lines.append("=" * len(novel_title))
@@ -138,7 +162,19 @@ def build_txt(chapters: list[dict], novel_title: str, separator: str = "\n\n---\
     lines.append("=" * len(novel_title))
     lines.append("")
 
+    last_vol = None
     for ch in chapters:
+        # Volume separator
+        vol = ch.get("volume_no", 1)
+        if vol != last_vol:
+            if last_vol is not None:
+                lines.append("")
+                lines.append("=" * 40)
+                lines.append("")
+            lines.append(f"第{vol}卷")
+            lines.append("-" * 20)
+            lines.append("")
+            last_vol = vol
         # Chapter header
         lines.append(f"第{ch['chapter_no']}章  {ch['title']}")
         lines.append("-" * 40)
@@ -169,7 +205,13 @@ def build_md(
     if include_toc and chapters:
         lines.append("## 目录")
         lines.append("")
+        last_vol = None
         for ch in chapters:
+            vol = ch.get("volume_no", 1)
+            if vol != last_vol:
+                lines.append(f"### 第{vol}卷")
+                lines.append("")
+                last_vol = vol
             anchor = f"chapter-{ch['chapter_no']}"
             status_mark = ""
             if ch["status"] == "draft":
@@ -182,7 +224,17 @@ def build_md(
             )
         lines.append("")
 
+    last_vol = None
     for ch in chapters:
+        vol = ch.get("volume_no", 1)
+        if vol != last_vol:
+            if last_vol is not None:
+                lines.append("")
+                lines.append("---")
+                lines.append("")
+            lines.append(f"# 第{vol}卷")
+            lines.append("")
+            last_vol = vol
         anchor = f"chapter-{ch['chapter_no']}"
         lines.append(f"## 第{ch['chapter_no']}章  {ch['title']} {{#{anchor}}}")
         lines.append("")
@@ -192,6 +244,41 @@ def build_md(
         lines.append("")
 
     return "\n".join(lines)
+
+
+_CN_EXPORT = "零一二三四五六七八九"
+
+
+def _cn_numeral(n: int) -> str:
+    """1→一, 12→十二, 100→一百"""
+    if n <= 10:
+        return _CN_EXPORT[n] if n < 10 else "十"
+    if n < 20:
+        return "十" + (_CN_EXPORT[n - 10] if n > 10 else "")
+    if n < 100:
+        t = _CN_EXPORT[n // 10]
+        o = _CN_EXPORT[n % 10] if n % 10 else ""
+        return f"{t}十{o}"
+    if n < 1000:
+        h = _CN_EXPORT[n // 100]
+        r = n % 100
+        if r == 0:
+            return f"{h}百"
+        if r < 10:
+            return f"{h}百零{_CN_EXPORT[r]}"
+        rs = _cn_numeral(r)
+        if 10 <= r < 20:
+            rs = "一" + rs
+        return f"{h}百{rs}"
+    return str(n)
+
+
+def _find_chapter_file_export(ch_no: int, directory: Path) -> Path | None:
+    for pat in [f"第{ch_no}章*.txt", f"第{ch_no:02d}章*.txt", f"第{_cn_numeral(ch_no)}章*.txt"]:
+        candidates = sorted(directory.glob(pat))
+        if candidates:
+            return candidates[0]
+    return None
 
 
 def export_novel(
@@ -205,6 +292,7 @@ def export_novel(
     include_toc: bool = True,
     separator: str = "\n\n---\n\n",
     db_path_override: str | None = None,
+    chapters_dir: str | Path | None = None,
 ) -> dict:
     """Export all chapters of a novel to a single file.
 
@@ -240,7 +328,7 @@ def export_novel(
             "chapters_exported": 0,
         }
 
-    chapters = get_chapters(conn, novel["id"], from_ch, to_ch)
+    chapters = get_chapters(conn, novel["id"], from_ch, to_ch, chapters_dir)
     conn.close()
 
     if not chapters:
@@ -324,6 +412,10 @@ def main():
         help="Override novel title from database",
     )
     parser.add_argument(
+        "--chapters-dir", default=None,
+        help="Directory with chapter .txt files (fallback when DB content is empty)",
+    )
+    parser.add_argument(
         "--from-ch", type=int, default=1,
         help="Starting chapter number (default: 1)",
     )
@@ -356,6 +448,7 @@ def main():
         include_toc=not args.no_toc,
         separator=args.separator,
         db_path_override=args.db_path,
+        chapters_dir=args.chapters_dir,
     )
 
     if args.json:

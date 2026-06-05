@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-guard_result.py — Unified guard result data structures for v0.4.5
+guard_result.py — Unified guard result data structures
 
 Guard Finding: individual issue found by a guard
 Guard Result:   one guard's complete output
@@ -10,6 +10,7 @@ Guard Summary:  all guards' combined result — THE single truth source
 from dataclasses import dataclass, field, asdict
 from typing import Literal, Optional
 import json
+from version import get_version
 
 
 Severity = Literal["PASS", "WARN", "FAIL"]
@@ -78,7 +79,7 @@ class GuardSummary:
     blocked_by: list[str] = field(default_factory=list)
     fts_health: dict = field(default_factory=dict)
     title_diff: Optional[str] = None
-    version: str = "v0.4.5"
+    version: str = get_version()
 
     def compute(self):
         """Recompute derived fields from results."""
@@ -153,7 +154,7 @@ class GuardSummary:
         summary.blocked_by = data.get("blocked_by", [])
         summary.fts_health = data.get("fts_health", {})
         summary.title_diff = data.get("title_diff")
-        summary.version = data.get("version", "v0.4.5")
+        summary.version = data.get("version", get_version())
         for r in data.get("results", []):
             findings = [GuardFinding(**f) for f in r.get("findings", [])]
             gr = GuardResult(

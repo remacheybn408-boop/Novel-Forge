@@ -29,7 +29,17 @@ from src.guards.human_texture.voice_diversity_guard import (
     export_char_card, import_char_card,
     VOICE_CARD_FIELDS, PERSONALITY_FIELDS, BEHAVIOR_FIELDS, PERSONALITY_CHOICES,
     DB_CHAR_FIELDS, DB_CHAR_FIELD_NAMES_EXT,
+    MENTAL_STATE_CATEGORIES,
 )
+from src.guards.human_texture.mental_state_crud import (
+    get_mental_state, save_mental_state, list_mental_states,
+)
+
+
+def _normalize_mental_category(cat: str) -> str:
+    """规范化精神状态类别名：接受半角括号作为全角括号的别名。"""
+    cat = cat.replace("(", "（").replace(")", "）")
+    return cat
 
 
 def _new_empty_card(name: str) -> dict:
@@ -57,17 +67,18 @@ def _get_outline_content() -> tuple[str, str, int]:
 
 
 def _extract_chinese_names(text: str) -> set:
-    """从文本中提取中文人名（复用 commands_voice 逻辑）."""
+    """从文本中提取中文人名."""
     surnames_str = ("李王张刘陈杨赵黄周吴徐孙马胡朱郭何林高罗"
                     "郑梁谢宋唐许邓韩冯曹彭曾肖田董潘袁蔡蒋余"
                     "于杜叶程苏魏吕丁任卢姚沈姜崔钟谭陆汪范金"
                     "石廖贾夏韦傅方白邹孟熊秦邱江尹薛阎段雷侯"
-                    "龙史陶黎贺顾毛郝龚邵万钱严覃武戴莫孔向汤")
+                    "龙史陶黎贺顾毛郝龚邵万钱严覃武戴莫孔向汤"
+                    "鲁萧齐魂")
     surnames = set(surnames_str)
     reliable_names = set()
     heuristic_names = set()
 
-    # 方法1（优先）：角色字段后提取
+    # 方法1a：角色字段后提取（带冒号）
     for pattern in [r'(?:主角|姓名|角色|人物|男主|女主|男配|女配)[：:]\s*([^\n，。]{2,4})',
                     r'(?:主角|姓名|角色|人物|男主|女主|男配|女配)[是为叫作叫做称呼]\s*([^\n，。]{2,4})']:
         for m in re.finditer(pattern, text):
@@ -75,23 +86,92 @@ def _extract_chinese_names(text: str) -> set:
             if 2 <= len(name) <= 4:
                 reliable_names.add(name)
 
+    # 方法1b：男主林观澜 / 女主沈青霜 / 师尊顾长庚（角色名紧接姓名）
+    for m in re.finditer(r'(?:男主|女主|师尊|反派|前世女友|东北|山东|山东人|核心人物|讲理人)([\u4e00-\u9fff]{2,4})(?:[：:，，\n])', text):
+        name = m.group(1).strip()
+        if name[0] in surnames and 2 <= len(name) <= 4:
+            reliable_names.add(name)
+
+    # 方法1c：编号开头 + 姓名 + 冒号（如 1. 鲁砚山：）
+    for m in re.finditer(r'^\s*\d+[.、]\s*([\u4e00-\u9fff]{2,4})[：:]', text, re.MULTILINE):
+        name = m.group(1).strip()
+        if name[-1] not in "的写了发现说看和与在把被将为对来去出进到从以":
+            if 2 <= len(name) <= 4:
+                # 只有首字是常见姓或者名字包含已有姓氏才加入
+                if name[0] in surnames or any(s in name for s in surnames):
+                    reliable_names.add(name)
+
+    # 方法1d：行首姓名+冒号（无编号），如 罗千钧： 或 天道尸骸：
+    for m in re.finditer(r'^([\u4e00-\u9fff]{2,4})[：:]\s', text, re.MULTILINE):
+        name = m.group(1).strip()
+        if name[0] in surnames and 2 <= len(name) <= 4:
+            reliable_names.add(name)
+    # 1e: 4字名在行首被 / 或空格分隔的情况，如 "天道尸骸 / 齐岳老祖："
+    for m in re.finditer(r'^([\u4e00-\u9fff]{4})\s*[/／]\s*([\u4e00-\u9fff]{2,4})[：:]', text, re.MULTILINE):
+        for g in [m.group(1), m.group(2)]:
+            if g[0] in surnames and 2 <= len(g) <= 4:
+                reliable_names.add(g)
+
     # 方法2：姓氏启发式 — 仅提取 2 字名
-    _punct_chars = set("，。！？、；：''（）《》…— \t,./!?;:()[]{}")
+    _punct_chars = set('，。！？、；：''（）《》…— \t,./!?;:()[]{}"')
     _bad_endings = {"场", "上", "下", "里", "前", "后", "中", "的", "了",
                     "和", "与", "在", "把", "被", "将", "对", "为",
                     "都", "也", "还", "就", "已", "能", "会", "可",
                     "来", "去", "出", "进", "到", "从", "以"}
+    _COMMON_COMPOUNDS = {
+        "严禁", "严肃", "严重", "严格",
+        "过程", "工程", "程度", "程序", "章程", "课程",
+        "关于", "等于", "至于", "由于", "位于", "对于", "属于", "终于",
+        "马上", "马路",
+        "王国", "帝王", "霸王",
+        "龙王", "巨龙", "恐龙", "神龙",
+        "森林", "树林", "丛林", "园林", "密林",
+        "资金", "金属", "现金", "黄金",
+        "石头", "宝石", "钻石", "化石", "岩石",
+        "方法", "方式", "方案", "方向", "方面",
+        "高度", "高级", "高大", "高尚",
+        "周围", "周期", "周年",
+        "黄色", "黄昏",
+        "江湖", "江山",
+        "明白", "黑白", "洁白",
+        "历史", "史书",
+        "毛病", "毛发",
+        "万物", "万事", "万一",
+        "武器", "武功", "武术",
+        "雷霆", "雷电",
+        "段落", "手段", "阶段",
+        "任何", "如何",
+        "感谢", "谢谢",
+        "苏醒", "复苏",
+        "沉思", "沉重",
+        "范围", "范例",
+        "清楚", "清晰", "清醒", "清理",
+        "叶子", "树叶",
+        "白不", "白保", "白死", "白山", "孙白",
+        "于普", "于台", "于复", "于天", "于明", "于罗",
+        "段人", "段必", "段温", "段讲",
+        "程杀", "程问",
+        "许只", "许男", "林哥", "林观",
+        "罗千", "顾长", "沈青", "许知", "许铁", "赵二",
+        "鲁砚", "齐岳", "萧无",
+        "魂是", "魂频",
+        "金丹", "雷法", "雷火",
+        "高光", "高兴", "高压", "高维",
+        "莫急", "石灰", "方程", "方言", "任务",
+        "严禁", "方言轻量", "鲁三", "鲁哥",
+    }
     for i, ch in enumerate(text):
         if ch in surnames and i + 1 < len(text):
             nxt = text[i + 1]
             if nxt not in _punct_chars:
                 candidate2 = text[i:i + 2]
-                if candidate2[1] not in _bad_endings:
+                if candidate2[1] not in _bad_endings and candidate2 not in _COMMON_COMPOUNDS:
                     heuristic_names.add(candidate2)
 
     # 合并
     result = set(reliable_names)
     for hn in heuristic_names:
+        hn = hn.strip()
         if any(hn in rn or rn in hn for rn in reliable_names):
             continue
         _stop = {"时候", "地方", "这里", "那里", "这边", "那边", "怎么", "什么",
@@ -99,10 +179,19 @@ def _extract_chinese_names(text: str) -> set:
                  "继续", "回到", "来到", "走出", "进入", "拿起", "放下"}
         if hn in _stop:
             continue
+        if text.count(hn) < 2:
+            continue
         result.add(hn)
 
-    return {n for n in result if 2 <= len(n) <= 4}
+    # 后处理：剔除2字碎片（如果3/4字名已存在）
+    final = set()
+    for n in sorted(result, key=len, reverse=True):
+        if len(n) == 2 and any(n in longer for longer in final):
+            continue
+        if text.count(n) >= 2 or n in reliable_names:
+            final.add(n)
 
+    return {n for n in final if 2 <= len(n) <= 4}
 
 def _get_db_characters() -> list[dict]:
     """从当前 slot 的 characters 表获取所有已注册角色."""
@@ -178,6 +267,8 @@ def _print_char_table(cards: list[dict]):
 def _char_list():
     """列出所有角色卡."""
     cards = list_character_cards(PROJECT_ROOT)
+    if not cards:
+        cards = _get_db_characters()
     _print_char_table(cards)
     print()
     current_set = get_active_voice_card_set(PROJECT_ROOT)
@@ -188,12 +279,14 @@ def _char_list():
 def _char_show(name: str):
     """显示完整角色卡（JSON 角色卡 + DB 数据合并）."""
     card = get_character_card(PROJECT_ROOT, name)
-    if not card:
-        print(f"  未找到角色「{name}」")
-        return
-
     # 获取 DB 行
     db_row = get_char_db_row(PROJECT_ROOT, name)
+    if not card:
+        if db_row:
+            card = {"name": db_row.get("name", name), "personality": {}, "behavior": {}}
+        else:
+            print(f"  未找到角色「{name}」")
+            return
 
     print(f"  ╔══ 角色卡 ── {name} ═══")
     print()
@@ -213,6 +306,10 @@ def _char_show(name: str):
     # ── 做事风格 ──
     behavior = card.get("behavior", {})
     has_behavior = any(behavior.get(f) for f in BEHAVIOR_FIELDS if behavior.get(f))
+
+    # ── 精神状态（从独立文件读取）──
+    mental = get_mental_state(PROJECT_ROOT, name)
+    has_mental = bool(mental and any(v is not None for v in mental.values()))
 
     # ── 声纹 ──
     voice = card.get("voice", {})
@@ -239,6 +336,8 @@ def _char_show(name: str):
         sections.append("personality")
     if has_behavior:
         sections.append("behavior")
+    if has_mental:
+        sections.append("mental_state")
     if has_voice:
         sections.append("voice")
     if has_rel:
@@ -293,6 +392,19 @@ def _char_show(name: str):
                         print(f"  │  {f}: {', '.join(val)}")
                 elif val:
                     print(f"  │  {f}: {val}")
+
+        elif sec == "mental_state":
+            print(f"{prefix}【精神状态】")
+            for cat in MENTAL_STATE_CATEGORIES:
+                data = mental.get(cat, None)
+                if data is None:
+                    continue
+                sev = data.get("severity", 0)
+                onset = data.get("onset", "") or ""
+                bar = "█" * sev + "░" * (5 - sev)
+                print(f"  │  {cat} ({sev}/5 {bar})")
+                if onset:
+                    print(f"  │    {onset}")
 
         elif sec == "voice":
             print(f"{prefix}【声纹】")
@@ -762,6 +874,333 @@ def _char_chapters(name: str):
         print(f"    第{ch}章  {'/'.join(tags)}")
 
 
+# ── 精神状态管理 ──
+
+MENTAL_STATE_HELP = """
+可用精神状况类别:
+  抑郁症  PTSD  焦虑症  强迫症  PTSD（战场型）  人格障碍
+  进食障碍  睡眠障碍  物质滥用  精神分裂
+  双相情感障碍  恐惧症  解离性障碍  适应障碍  冲动控制障碍
+"""
+
+
+def _get_mental_state(name: str) -> dict:
+    """从独立文件获取角色精神状态字典。"""
+    return get_mental_state(PROJECT_ROOT, name)
+
+
+def _char_mental_show(name: str):
+    """显示角色精神状态表格."""
+    ms = _get_mental_state(name)
+
+    print(f"  ╔══ {name} 精神状态 ═══")
+    print()
+    has_any = False
+    for cat in MENTAL_STATE_CATEGORIES:
+        data = ms.get(cat, None)
+        if data is None:
+            continue
+        has_any = True
+        sev = data.get("severity", 0)
+        onset = data.get("onset", "") or "—"
+        triggers = ", ".join(data.get("triggers", [])) or "—"
+        manifests = ", ".join(data.get("manifestations", [])) or "—"
+        notes = data.get("chapter_notes", {})
+        note_count = len(notes)
+        bar = "█" * sev + "░" * (5 - sev)
+        print(f"  {cat}")
+        print(f"    严重度: {sev}/5  {bar}")
+        print(f"    诱因:   {onset}")
+        print(f"    触发词: {triggers}")
+        print(f"    表现:   {manifests}")
+        if note_count > 0:
+            latest = sorted(notes.items(), key=lambda x: int(x[0]))[-3:]
+            print(f"    章节追踪 ({note_count} 章):")
+            for ch, note in latest:
+                print(f"      第{ch}章: {note[:50]}{'…' if len(note) > 50 else ''}")
+        print()
+
+    if not has_any:
+        print(f"  (该角色暂未设置任何精神状态)")
+        print()
+        print(f"  你可以:")
+        print(f"    python novel.py character mental {name} set 抑郁症 3")
+        print(f"    python novel.py character mental {name} onset PTSD 宗门被灭当晚")
+        print(f"    python novel.py character mental {name} trigger 焦虑症 血月")
+        print(f"    python novel.py character mental {name} manifest PTSD 噩梦惊醒")
+        print(MENTAL_STATE_HELP)
+    else:
+        print(f"  相关命令:")
+        print(f"    python novel.py character mental {name} set <类别> <0-5>")
+        print(f"    python novel.py character mental {name} onset <类别> <文本>")
+        print(f"    python novel.py character mental {name} trigger <类别> <词>")
+        print(f"    python novel.py character mental {name} check <章节号>")
+    print(f"  ╚═══")
+
+
+def _char_mental_set(name: str, category: str, severity: int):
+    """设置某类精神状态的 severity（0=清除）. """
+    category = _normalize_mental_category(category)
+    if category not in MENTAL_STATE_CATEGORIES:
+        print(f"  ❌ 未知类别「{category}」")
+        print(MENTAL_STATE_HELP)
+        return
+    if severity < 0 or severity > 5:
+        print("  ❌ severity 必须在 0-5 之间")
+        return
+
+    ms = _get_mental_state(name)
+
+    if severity == 0:
+        if category in ms:
+            del ms[category]
+            print(f"  ✅ 已清除「{name}」的「{category}」")
+        else:
+            print(f"  ℹ️  「{name}」没有「{category}」记录")
+            return
+    else:
+        if category in ms and ms[category] is not None:
+            ms[category]["severity"] = severity
+        else:
+            ms[category] = {"severity": severity, "onset": "", "triggers": [], "manifestations": [], "chapter_notes": {}}
+        print(f"  ✅ 「{name}」的「{category}」严重度 → {severity}/5")
+
+    save_mental_state(PROJECT_ROOT, name, ms)
+
+
+def _char_mental_onset(name: str, category: str, text: str):
+    """设置诱因."""
+    category = _normalize_mental_category(category)
+    if category not in MENTAL_STATE_CATEGORIES:
+        print(f"  ❌ 未知类别")
+        print(MENTAL_STATE_HELP)
+        return
+    ms = _get_mental_state(name)
+    if category not in ms or ms[category] is None:
+        print(f"  ℹ️  「{category}」尚未设置，先 set severity > 0")
+        return
+    ms[category]["onset"] = text
+    save_mental_state(PROJECT_ROOT, name, ms)
+    print(f"  ✅ 「{name}」的「{category}」诱因已设置")
+
+
+def _char_mental_trigger(name: str, category: str, word: str):
+    """添加触发词."""
+    category = _normalize_mental_category(category)
+    if category not in MENTAL_STATE_CATEGORIES:
+        print(f"  ❌ 未知类别")
+        print(MENTAL_STATE_HELP)
+        return
+    ms = _get_mental_state(name)
+    if category not in ms or ms[category] is None:
+        print(f"  ℹ️  「{category}」尚未设置，先 set severity > 0")
+        return
+    triggers = ms[category].setdefault("triggers", [])
+    if word not in triggers:
+        triggers.append(word)
+        save_mental_state(PROJECT_ROOT, name, ms)
+        print(f"  ✅ 已添加触发词「{word}」")
+    else:
+        print(f"  ℹ️  「{word}」已在触发词列表中")
+
+
+def _char_mental_manifest(name: str, category: str, description: str):
+    """添加发作表现."""
+    category = _normalize_mental_category(category)
+    if category not in MENTAL_STATE_CATEGORIES:
+        print(f"  ❌ 未知类别")
+        print(MENTAL_STATE_HELP)
+        return
+    ms = _get_mental_state(name)
+    if category not in ms or ms[category] is None:
+        print(f"  ℹ️  「{category}」尚未设置，先 set severity > 0")
+        return
+    manifests = ms[category].setdefault("manifestations", [])
+    if description not in manifests:
+        manifests.append(description)
+        save_mental_state(PROJECT_ROOT, name, ms)
+        print(f"  ✅ 已添加表现「{description}」")
+    else:
+        print(f"  ℹ️  「{description}」已在表现列表中")
+
+
+def _char_mental_check(name: str, chapter_no: str):
+    """审核章节精神状态一致性（调用 mental_state_guard）. """
+    from src.cli.commands_voice import _resolve_chapter_path
+    ch_path = _resolve_chapter_path(chapter_no)
+    if not ch_path:
+        print(f"  ❌ 找不到第{chapter_no}章文件")
+        return
+    content = Path(ch_path).read_text(encoding="utf-8")
+    ms = _get_mental_state(name)
+    if not ms or all(v is None for v in ms.values()):
+        print(f"  ℹ️  「{name}」未设置精神状态，跳过审核")
+        return
+
+    try:
+        from src.guards.human_texture.mental_state_guard import run_mental_state_check
+        result = run_mental_state_check(content, int(chapter_no), project_root=PROJECT_ROOT, character_name=name)
+        status = result.get("status", "PASS")
+        icon = {"PASS": "✅", "WARN": "⚠️", "FAIL": "❌"}.get(status, "❓")
+        print(f"  {icon} 精神状态审核 — 第{chapter_no}章 / {name}")
+        print(f"     状态: {status}")
+        print()
+        for issue in result.get("issues", []):
+            lvl = issue.get("severity", "INFO")
+            msg = issue.get("message", "")
+            sug = issue.get("suggestion", "")
+            iicon = {"WARN": "⚠️", "FAIL": "❌", "PASS": "✅"}.get(lvl, "💡")
+            print(f"    {iicon} {msg}")
+            if sug:
+                print(f"         → {sug}")
+    except ImportError:
+        print(f"  ℹ️  mental_state_guard 未安装，执行简单关键词检查")
+        _simple_mental_check(content, name, ms, chapter_no)
+
+
+def _simple_mental_check(content: str, name: str, ms: dict, chapter_no: str):
+    """无 guard 时的降级精神状态检查。
+
+    Args:
+        ms: mental_state dict (直接传入，不做 card 解包)
+    """
+    findings = []
+    for cat, data in ms.items():
+        if data is None:
+            continue
+        triggers = data.get("triggers", [])
+        if not triggers:
+            continue
+        for t in triggers:
+            if t in content:
+                manifests = data.get("manifestations", [])
+                has_manifest = any(m in content for m in manifests)
+                if not has_manifest:
+                    findings.append(f"    第{chapter_no}章出现「{cat}」触发词「{t}」，但未见对应表现")
+    if findings:
+        print(f"  ⚠️ 发现 {len(findings)} 个一致性问题:")
+        for f in findings:
+            print(f)
+    else:
+        print(f"  ✅ 未发现明显一致性问题")
+
+
+def _char_mental_scan():
+    """从大纲扫描推荐角色精神状态."""
+    title, content, ch_count = _get_outline_content()
+    if not title:
+        print("  ⛔ 当前没有激活的大纲")
+        return
+
+    print(f"  📋 大纲: {title} ({ch_count} 章)")
+    print(f"  🔍 正在扫描精神状态关键词...")
+    print()
+
+    # 加载关键词词库
+    keyword_map = _load_mental_keywords()
+    if not keyword_map:
+        print("  ⚠️  词库加载失败，使用内置关键词")
+        keyword_map = _builtin_mental_keywords()
+
+    # 提取角色名
+    extracted_names = _extract_chinese_names(content)
+    db_chars = _get_db_characters()
+    db_names = {c["name"] for c in db_chars}
+    all_chars = sorted(extracted_names | db_names)
+
+    if not all_chars:
+        print("  ⚠️  大纲中未检测到角色名")
+        return
+
+    # v0.7.1-f: 噪声词过滤 — 单字 + 通用高频词汇
+    _NOISE_WORDS = {
+        "嗜", "酗", "回忆", "失败", "失去", "孤独", "压力",
+        "拒绝", "穿越", "逃避", "离开", "消失", "沉默",
+        "紧张", "不安", "害怕", "担心",
+    }
+
+    results = []
+    for name in all_chars:
+        char_results = []
+        # v0.7.1-f: 角色名附近 200 字范围搜索（替代全局搜索）
+        name_pos = content.find(name)
+        if name_pos >= 0:
+            window_start = max(0, name_pos - 200)
+            window_end = min(len(content), name_pos + len(name) + 200)
+            window = content[window_start:window_end]
+        else:
+            window = content  # 极端 fallback
+
+        for cat, keywords in keyword_map.items():
+            hit_count = 0
+            hit_keywords = []
+            all_kw = set()
+            for kw_list in keywords.values():
+                all_kw.update(kw_list)
+            for kw in all_kw:
+                if len(kw) <= 1 or kw in _NOISE_WORDS:
+                    continue
+                if kw in window:
+                    hit_count += 1
+                    hit_keywords.append(kw)
+            if hit_count > 0:
+                # v0.7.1-f: 改进 severity，降低噪音放大
+                suggested = min(5, max(1, hit_count))
+                char_results.append((cat, suggested, hit_keywords))
+
+        if char_results:
+            results.append((name, char_results))
+
+    if not results:
+        print("  未检测到与精神状态相关的关键词")
+        return
+
+    for name, char_results in results:
+        print(f"  🎭 {name}")
+        for cat, sev, hk in char_results:
+            kw_str = ", ".join(hk[:5])
+            extra = "…" if len(hk) > 5 else ""
+            print(f"    → 建议 {cat} (severity ≥ {sev})")
+            print(f"      相关关键词: {kw_str}{extra}")
+        print()
+
+    print(f"  📊 共 {len(results)} 个角色有精神状态建议")
+    print()
+    print(f"  设置方法:")
+    for name, char_results in results[:3]:
+        first_cat = char_results[0][0] if char_results else "抑郁症"
+        print(f"    python novel.py character mental {name} set {first_cat} 3")
+
+
+def _load_mental_keywords() -> dict:
+    """从 mental_state_presets.yaml 加载关键词词库."""
+    try:
+        import yaml
+        kf = PROJECT_ROOT / "configs" / "human_texture" / "mental_state_presets.yaml"
+        if not kf.exists():
+            return {}
+        data = yaml.safe_load(kf.read_text(encoding="utf-8"))
+        result = {}
+        for cat, cfg in data.items():
+            kw = cfg.get("keywords", {})
+            result[cat] = kw
+        return result
+    except Exception:
+        return {}
+
+
+def _builtin_mental_keywords() -> dict:
+    """内置关键词词库（降级用）. """
+    return {
+        "抑郁症": {"core": ["消沉", "悲观", "绝望", "虚无", "无意义", "厌倦", "孤独"]},
+        "PTSD": {"core": ["创伤", "噩梦", "闪回", "惊恐", "血月", "剑鸣"]},
+        "焦虑症": {"core": ["不安", "担忧", "害怕", "紧张", "焦虑", "恐慌"]},
+        "强迫症": {"core": ["强迫", "反复", "必须", "对称", "计数", "洁癖"]},
+        "物质滥用": {"core": ["成瘾", "依赖", "嗜", "酗", "滥用", "戒断"]},
+        "精神分裂": {"core": ["幻听", "幻视", "妄想", "被害", "幻觉"]},
+    }
+
+
 def cmd_character(args):
     """Dispatch character subcommands."""
     action = getattr(args, "character_action", None)
@@ -874,9 +1313,76 @@ def cmd_character(args):
         else:
             print("  用法: python novel.py character check <章节号> [--intensity light|normal|strict]")
 
+    elif action == "mental":
+        name = getattr(args, "character_name", "")
+        if not name:
+            print("  用法: python novel.py character mental <角色名> [操作]")
+            print()
+            print("  操作:")
+            print("    (无)              — 查看角色精神状态")
+            print("    show              — 查看角色精神状态")
+            print("    set <类别> <0-5>   — 设置严重度（0=清除）")
+            print("    onset <类别> <文本> — 设置诱因")
+            print("    trigger <类别> <词> — 添加触发词")
+            print("    manifest <类别> <描述> — 添加发作表现")
+            print("    check <章节号>     — 审核章节精神状态一致性")
+            print()
+            print("  示例: python novel.py character mental 韩烈")
+            print("        python novel.py character mental 韩烈 set PTSD 4")
+            print("        python novel.py character mental 韩烈 onset PTSD 宗门被灭当晚")
+            print("        python novel.py character mental 韩烈 trigger PTSD 血月")
+            print("        python novel.py character mental 韩烈 manifest PTSD 噩梦见血月")
+            print("        python novel.py character mental 韩烈 check 12")
+            print(MENTAL_STATE_HELP)
+            return
+
+        sub = getattr(args, "mental_action", "show")
+        arg1 = getattr(args, "mental_arg1", "")
+        arg2 = getattr(args, "mental_arg2", "")
+
+        if sub == "show" or sub is None or sub == "":
+            _char_mental_show(name)
+        elif sub == "set":
+            if not arg1 or arg2 == "":
+                print("  用法: python novel.py character mental <角色名> set <类别> <0-5>")
+                return
+            try:
+                sev = int(arg2)
+            except ValueError:
+                print("  严重度必须是数字 0-5")
+                return
+            _char_mental_set(name, arg1, sev)
+        elif sub == "onset":
+            if not arg1 or not arg2:
+                print("  用法: python novel.py character mental <角色名> onset <类别> <文本>")
+                return
+            _char_mental_onset(name, arg1, arg2)
+        elif sub == "trigger":
+            if not arg1 or not arg2:
+                print("  用法: python novel.py character mental <角色名> trigger <类别> <词>")
+                return
+            _char_mental_trigger(name, arg1, arg2)
+        elif sub == "manifest":
+            if not arg1 or not arg2:
+                print("  用法: python novel.py character mental <角色名> manifest <类别> <描述>")
+                return
+            _char_mental_manifest(name, arg1, arg2)
+        elif sub == "check":
+            if not arg1:
+                print("  用法: python novel.py character mental <角色名> check <章节号>")
+                return
+            _char_mental_check(name, arg1)
+        else:
+            print(f"  ❌ 未知操作「{sub}」")
+            print("  可用操作: show / set / onset / trigger / manifest / check")
+
+    elif action == "mental-scan":
+        _char_mental_scan()
+
     else:
         print("用法: python novel.py character {list|show|create|delete|edit|"
-              "relate|unrelate|relation-graph|export|import|focus|arc-check|outline-check}")
+              "relate|unrelate|relation-graph|export|import|focus|arc-check|"
+              "outline-check|mental|mental-scan}")
         print()
         print("  list                    — 列出所有角色卡")
         print("  show <角色名>            — 查看完整角色卡")
@@ -893,6 +1399,8 @@ def cmd_character(args):
         print("  outline-check            — 从大纲检查角色卡状态")
         print("  outline-check --create   — 检查 + 自动创建缺失角色卡")
         print("  chapters <角色名>        — 查角色出场章节")
+        print("  mental <角色名>           — 查看/管理精神状态（第四层）")
+        print("  mental-scan              — 从大纲扫描推荐精神状态")
         print()
         print("  字段列表:")
         print("    声纹:", " ".join(VOICE_CARD_FIELDS))

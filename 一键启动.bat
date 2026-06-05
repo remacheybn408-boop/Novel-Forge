@@ -1,6 +1,6 @@
 @echo off
 chcp 65001 >nul
-title Novel Forge - 小说引擎 v0.6.5
+title Novel Forge - 小说引擎 v0.7.1
 cd /d "%~dp0"
 
 :check_python
@@ -21,7 +21,7 @@ python novel.py init 2>nul
 echo   初始化完成！
 echo.
 echo   可用命令:
-echo     python novel.py write         写作
+echo     python novel.py menu          打开菜单
 echo     python novel.py status        状态检查
 echo     python novel.py demo          运行演示
 echo     python novel.py report        查看报告

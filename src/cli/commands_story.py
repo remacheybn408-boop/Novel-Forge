@@ -1,9 +1,10 @@
-"""src/cli/commands_story.py — Story contract commands v0.6.7"""
+"""src/cli/commands_story.py — Story contract commands v0.7.0"""
 
 from src.cli.shared import (PROJECT_ROOT, SCRIPTS_DIR, _load_project_config,
     _cfg_path, _get_default_slug, _get_novels_root, _resolve_post_context,
-    _story_exists, _story_missing_msg, _get_workspace_dir, _get_active_db_path,
-    _get_outline_manager, _check_outline_gate, _get_story_dir)
+    _resolve_chapter_path, _story_exists, _story_missing_msg, _get_workspace_dir,
+    find_chapter_file,
+    _get_active_db_path, _get_outline_manager, _check_outline_gate, _get_story_dir)
 import sys
 import json
 from pathlib import Path
@@ -17,13 +18,21 @@ def cmd_story(args):
     action = getattr(args, "story_action", None)
 
     if action == "init":
-        if _story_exists():
-            print("  .story/ 目录已存在。如需重建请先删除。")
-            return 0
+        already_existed = _story_exists()
         result = story_init.init_story(PROJECT_ROOT)
-        print(f"  [OK] .story/ 已初始化")
+        if already_existed:
+            print(f"  .story/ 已存在，检查提交记录...")
+        else:
+            print(f"  [OK] .story/ 已初始化")
         for item in result.get("created", []):
             print(f"    + {item}")
+        migrated = result.get("migrated", {})
+        if migrated.get("migrated", 0) > 0:
+            print(f"\n  [OK] 从 {migrated['migrated']} 个 commit 迁移生成了合同文件")
+            if migrated.get("skipped"):
+                print(f"  跳过: {', '.join(migrated['skipped'][:10])}")
+        if not result.get("created") and not migrated.get("migrated"):
+            print("  已是最新，无需操作。")
         print(f"\n  目录: {result['story_dir']}")
         return 0
 
@@ -72,8 +81,8 @@ def cmd_story(args):
                 nr = cfg.get("novels_root") or cfg.get("paths", {}).get("novels_root", "novels")
                 novels_dir = Path(nr) if Path(nr).is_absolute() else PROJECT_ROOT / nr
             except: pass
-        slug = "demo_novel"
-        # Also try the config's default slug
+        from src.cli.shared import _get_default_slug
+        slug = _get_default_slug()
         slugs_to_try = [slug]
         try:
             if (PROJECT_ROOT / "config.json").exists():
@@ -87,17 +96,15 @@ def cmd_story(args):
         # Search multiple possible locations
         search_dirs = []
         for s in slugs_to_try:
-            search_dirs.append(novels_dir / s / "第01卷")
+            search_dirs.append(Path(_resolve_chapter_path(s)))  # v0.8.0: volume-aware
+            search_dirs.append(novels_dir / s / "第01卷")         # legacy fallback
             search_dirs.append(novels_dir / s)
             search_dirs.append(PROJECT_ROOT / "novels" / s / "第01卷")
         for sd in search_dirs:
             if not sd.exists(): continue
-            for pattern in [f"第{chapter_no}章*.txt", f"第{chapter_no:02d}章*.txt"]:
-                candidates = list(sd.glob(pattern))
-                if candidates:
-                    ch_fp = candidates[0]
-                    break
-            if ch_fp: break
+            ch_fp = find_chapter_file(int(chapter_no), sd)
+            if ch_fp:
+                break
         wc = 0
         ch_title = f"第{chapter_no}章"
         if ch_fp and ch_fp.exists():

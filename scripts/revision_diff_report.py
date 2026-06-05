@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-revision_diff_report.py — 改稿对比报告 v0.4.0
+revision_diff_report.py — 改稿对比报告
 
 对比 source chapter 和 revised draft，生成 diff report。
 让用户知道改了什么、改了多大、是否建议采用。
@@ -12,6 +12,7 @@ revision_diff_report.py — 改稿对比报告 v0.4.0
 """
 import re, json, sys, argparse
 from pathlib import Path
+from version import get_version
 
 
 def split_paragraphs(text: str) -> list[str]:
@@ -116,7 +117,7 @@ def generate_diff_report(source_text: str, revised_text: str,
     chapter_no = rewrite_log.get("chapter_no", 0)
 
     return {
-        "version": "v0.4.0",
+        "version": get_version(),
         "chapter_no": chapter_no,
         "source_file": rewrite_log.get("source", ""),
         "revised_file": rewrite_log.get("output", ""),

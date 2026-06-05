@@ -233,7 +233,9 @@ def _create_slot_structure(slot_dir: Path):
                     title TEXT NOT NULL,
                     content TEXT DEFAULT '',
                     importance INTEGER DEFAULT 3,
-                    tags TEXT DEFAULT ''
+                    tags TEXT DEFAULT '',
+                    created_at TEXT DEFAULT (datetime('now')),
+                    updated_at TEXT DEFAULT (datetime('now'))
                 );
 
                 CREATE TABLE IF NOT EXISTS plot_threads (
@@ -384,6 +386,23 @@ def _create_slot_structure(slot_dir: Path):
                     title_type TEXT DEFAULT 'chapter',
                     change_reason TEXT DEFAULT '',
                     changed_at TEXT DEFAULT (datetime('now'))
+                );
+
+                CREATE TABLE IF NOT EXISTS chapter_contexts (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    novel_id INTEGER NOT NULL REFERENCES novels(id),
+                    chapter_id INTEGER NOT NULL REFERENCES chapters(id),
+                    chapter_no INTEGER NOT NULL,
+                    character_locations TEXT DEFAULT '{}',
+                    active_items TEXT DEFAULT '[]',
+                    unresolved_threads TEXT DEFAULT '[]',
+                    emotional_states TEXT DEFAULT '{}',
+                    world_state TEXT DEFAULT '',
+                    ending_state TEXT DEFAULT '',
+                    hooks_for_next TEXT DEFAULT '',
+                    raw_summary TEXT DEFAULT '',
+                    created_at TEXT DEFAULT (datetime('now')),
+                    UNIQUE(novel_id, chapter_id)
                 );
 
                 -- FTS5 全文检索索引 (v0.6.5-clean3)
@@ -676,11 +695,13 @@ def _db_new(name, description=""):
     registry = _json.loads(registry_file.read_text(encoding="utf-8"))
     slots = registry.get("slots", [])
 
-    # Auto-generate slot ID
+    # Collect existing slot IDs
+    existing_ids = set()
     max_idx = 0
     for s in slots:
         sid = s.get("id", "")
         if sid.startswith("slot_"):
+            existing_ids.add(sid)
             try:
                 idx = int(sid.replace("slot_", ""))
                 if idx > max_idx:
@@ -688,12 +709,43 @@ def _db_new(name, description=""):
             except ValueError:
                 pass
 
-    next_idx = max_idx + 1
-    slot_id = f"slot_{next_idx:03d}"
+    # ── 先扫描空 slot 复用 ──
+    slot_id = None
+    for i in range(1, max_idx + 2):
+        candidate = f"slot_{i:03d}"
+        if candidate not in existing_ids:
+            continue
+        candidate_dir = ws_dir / candidate
+        if not candidate_dir.exists():
+            continue
+        db_file = candidate_dir / "novel.db"
+        if not db_file.exists():
+            slot_id = candidate
+            break
+        # DB exists — check if chapters table is empty
+        try:
+            import sqlite3
+            conn = sqlite3.connect(str(db_file))
+            conn.row_factory = sqlite3.Row
+            cur = conn.cursor()
+            cur.execute("SELECT COUNT(*) as cnt FROM chapters")
+            row = cur.fetchone()
+            conn.close()
+            if row and row["cnt"] == 0:
+                slot_id = candidate
+                break
+        except Exception:
+            # DB exists but can't be read — treat as empty for reuse
+            slot_id = candidate
+            break
 
-    # Check if we need to auto-create more slots
-    if max_idx >= 3 and (max_idx + 1) % 4 == 0:
-        print(f"  ℹ️  已满 {max_idx} 个 slot，正在创建 {slot_id}（将自动扩展后续 slot）。")
+    reused = slot_id is not None
+    if not slot_id:
+        next_idx = max_idx + 1
+        slot_id = f"slot_{next_idx:03d}"
+
+        if max_idx >= 3 and (max_idx + 1) % 4 == 0:
+            print(f"  ℹ️  已满 {max_idx} 个 slot，正在创建 {slot_id}（将自动扩展后续 slot）。")
 
     # Create slot structure
     slot_dir = ws_dir / slot_id
@@ -707,20 +759,32 @@ def _db_new(name, description=""):
     proj["updated_at"] = datetime.now().isoformat()
     proj_file.write_text(_json.dumps(proj, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    # Add to registry
-    new_slot = {
-        "id": slot_id,
-        "name": name,
-        "description": description,
-        "status": "active",
-        "created_at": datetime.now().isoformat(),
-        "project_count": 1,
-    }
-    slots.append(new_slot)
+    # Add to registry (or update existing entry if reusing)
+    if reused:
+        for s in slots:
+            if s.get("id") == slot_id:
+                s["name"] = name
+                s["description"] = description
+                s["status"] = "active"
+                s["updated_at"] = datetime.now().isoformat()
+                break
+    else:
+        new_slot = {
+            "id": slot_id,
+            "name": name,
+            "description": description,
+            "status": "active",
+            "created_at": datetime.now().isoformat(),
+            "project_count": 1,
+        }
+        slots.append(new_slot)
     registry["slots"] = slots
     registry_file.write_text(_json.dumps(registry, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    print(f"  ✅ 新 DB slot 创建成功！")
+    if reused:
+        print(f"  ✅ 复用空 slot {slot_id}，已重置！")
+    else:
+        print(f"  ✅ 新 DB slot {slot_id} 创建成功！")
     print(f"  Slot ID: {slot_id}")
     print(f"  名称: {name}")
     if description:

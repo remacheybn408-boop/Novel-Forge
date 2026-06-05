@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "novel-forge": {
+      "command": "python",
+      "args": ["-m", "mcp_server.server"],
+      "env": {}
+    }
+  }
+}

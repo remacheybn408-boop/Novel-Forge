@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-scene_causality_guard.py — 场景因果链门禁 v0.4.0
+scene_causality_guard.py — 场景因果链门禁
 
 检查场景的 CARCRH 因果链完整性：
   Cause → Action → Resistance → Cost → Result → Hook
@@ -20,6 +20,7 @@ from scripts.consequence_lexicon import (
     count_visible_consequences,
     has_minimum_visible_cost,
 )
+from version import get_version
 
 
 # ═══════════════════════════════════════════════════
@@ -307,7 +308,7 @@ def run_scene_causality_check(content: str, chapter_no: int) -> dict:
     if analysis["scene_count"] == 0:
         return {
             "guard": "scene_causality_guard",
-            "version": "v0.4.0",
+            "version": get_version(),
             "status": "PASS",
             "scene_count": 0,
             "scenes_with_cause": 0,

@@ -137,6 +137,12 @@ def check_anti_ai(content: str) -> Tuple[int, list[dict]]:
 
             evidence_weight = 0.5 if has_physical_evidence(snippet) else 1.0
 
+            # Dialogue context: "不是...而是..." in speech is natural rhetoric
+            if evidence_weight == 1.0:
+                has_quote_pair = ('「' in snippet and '」' in snippet) or snippet.count('"') >= 2
+                if has_quote_pair:
+                    evidence_weight = 0.3
+
             findings.append({
                 "code": code,
                 "message": f"AI句式: '{m.group()[:40]}'",
@@ -322,7 +328,7 @@ def run_anti_ai_check_result(content: str, chapter_no: int = 0) -> dict:
     status = "PASS"
     if cliche_count >= 2:
         status = "WARNING"
-    elif not_a_b_count >= 5:
+    elif not_a_b_count >= 8:
         status = "WARNING"
     elif not_a_b_count >= 2 and hard_sci_count >= 2:
         status = "WARNING"

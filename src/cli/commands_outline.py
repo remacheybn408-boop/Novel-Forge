@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """src/cli/commands_outline.py — CLI commands for novel-pipeline-write-engine v0.6.5"""
 
-from src.cli.shared import PROJECT_ROOT, SCRIPTS_DIR, _get_outline_dir, _get_outline_manager
+from src.cli.shared import PROJECT_ROOT, SCRIPTS_DIR, _get_outline_dir, _get_outline_manager, _get_story_dir
 import sys
 import json
 from pathlib import Path
@@ -43,8 +43,10 @@ def cmd_outline(args):
         return _outline_delete(getattr(args, "delete_id", ""))
     elif action == "undo":
         return _outline_undo()
+    elif action == "mental-scan":
+        return _outline_mental_scan()
     else:
-        print("用法: python novel.py outline {add|import|list|current|switch|diff|rollback|compare|delete}")
+        print("用法: python novel.py outline {add|import|list|current|switch|diff|rollback|compare|delete|mental-scan}")
         print()
         print("  add <文件>              添加大纲（自动相似度检测）")
         print("  import <文件> --title T  导入大纲（指定标题）")
@@ -55,6 +57,7 @@ def cmd_outline(args):
         print("  rollback <id>           回滚大纲到上一版本")
         print("  compare <文件>           对比文件与当前激活大纲")
         print("  delete <id>             删除指定大纲")
+        print("  mental-scan             从大纲扫描角色精神状态")
         return 1
 
 
@@ -372,6 +375,10 @@ def _outline_add(file_path, title="", genre="", style="",
                 print(f"  新 Slot: {result['slot_id']}" )
                 print(f"  大纲 ID: {result['outline_id']}" )
                 print(f"  标题: {result['title']}" )
+
+                # 3.1: Auto-initialize story contract
+                _auto_story_init(result['title'], genre, style)
+
                 return 0
             else:
                 print("  ⏭️  已取消。" )
@@ -404,7 +411,42 @@ def _outline_add(file_path, title="", genre="", style="",
     print(f"  卷数: {result.get('volume_count', 1)}" )
     print()
     print("  使用 python novel.py outline list 查看所有大纲" )
+
+    # 3.1: Auto-initialize story contract
+    _auto_story_init(result['title'], genre, style)
+
     return 0
+
+
+def _auto_story_init(title="", genre="", style=""):
+    """Auto-initialize .story/ contract after successful outline import."""
+    from scripts.story import story_init
+    story_dir = _get_story_dir()
+    ms_file = story_dir / "master_setting.json"
+    if ms_file.exists():
+        return  # Already initialized
+
+    result = story_init.init_story(PROJECT_ROOT, novel_title=title or "未命名小说")
+    if result["ok"]:
+        # Enrich master_setting with outline metadata
+        ms = json.loads(ms_file.read_text(encoding="utf-8"))
+        if genre:
+            ms["genre"] = genre
+        if style:
+            ms["style"] = style
+        if title:
+            ms["title"] = title
+        ms_file.write_text(json.dumps(ms, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"  📋 story contract 已自动初始化 ({len(result['created'])} 个文件)")
+
+    # Initialize initial contract for chapter 1
+    try:
+        from scripts.story import contract_builder
+        contract = contract_builder.build_contract(PROJECT_ROOT, 1, "")
+        contract_builder.save_contract(PROJECT_ROOT, 1, contract)
+        print(f"  第1章初始合同已创建")
+    except Exception as e:
+        print(f"  (合同生成跳过: {e})")
 
 
 def _outline_import(file_path, title="", genre="", style=""):
@@ -439,6 +481,10 @@ def _outline_import(file_path, title="", genre="", style=""):
     print(f"  标题: {result['title']}")
     print(f"  章节数: {result.get('chapter_count', 0)}")
     print()
+
+    # 3.1: Auto-initialize story contract
+    _auto_story_init(result['title'], genre, style)
+
     return 0
 
 
@@ -778,6 +824,17 @@ def _outline_undo():
         print(f"  ❌ {result.get('message', '')}")
         return 1
     print(f"  ✅ {result.get('message', '')}")
+    return 0
+
+
+def _outline_mental_scan():
+    """从大纲扫描角色精神状态（委托给 character mental-scan）. """
+    try:
+        from src.cli.commands_character import _char_mental_scan
+        _char_mental_scan()
+    except ImportError as e:
+        print(f"  ❌ 无法加载精神状态扫描模块: {e}")
+        print(f"  请尝试: python novel.py character mental-scan")
     return 0
 
 

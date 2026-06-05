@@ -2,6 +2,7 @@
 """Test patch_planner — 改稿补丁规划器测试"""
 import sys, json
 from pathlib import Path
+from version import get_version
 from scripts.patch_planner import build_patch_plan, detect_locked_ranges, split_paragraphs
 
 
@@ -30,7 +31,7 @@ def test_build_patch_plan():
         }]
     }
     plan = build_patch_plan(chapter, tasks)
-    assert plan["version"] == "v0.4.0"
+    assert plan["version"] == get_version()
     assert len(plan["patch_plan"]) >= 1
     assert plan["changed_ratio"] <= 0.35
 

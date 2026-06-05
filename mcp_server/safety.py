@@ -20,6 +20,7 @@ ALLOWED_DIRS = [
     PROJECT_ROOT / "docs",
     PROJECT_ROOT / "examples",
     PROJECT_ROOT / "novels",
+    PROJECT_ROOT / "outlines",
 ]
 
 # ── 白名单命令模板 ──
@@ -55,6 +56,9 @@ ALLOWED_COMMANDS = [
     (r"^guards$", "列出守卫"),
     (r"^export --format txt$", "导出 TXT"),
     (r"^export --format md$", "导出 Markdown"),
+    (r"^export --format txt --slug \S+$", "导出指定小说 TXT"),
+    (r"^export --format md --slug \S+$", "导出指定小说 Markdown"),
+    (r"^export$", "导出（无参数）"),
 
     # Story Contract（只读）
     (r"^story health$", "故事链健康检查"),
@@ -65,6 +69,8 @@ ALLOWED_COMMANDS = [
     (r"^voice list$", "列出声纹卡"),
     (r"^character list$", "列出角色卡"),
     (r"^character show \S+$", "查看角色卡"),
+    (r"^character mental \S+$", "查看精神状态"),
+    (r"^character mental-scan$", "精神状态扫描"),
 
     # 题材/风格（只读）
     (r"^genre list$", "列出题材包"),
@@ -75,8 +81,9 @@ ALLOWED_COMMANDS = [
     # RAG（只读）
     (r"^rag status$", "RAG 状态"),
 
-    # 新增——安全的大纲添加
-    (r"^outline add--dry-run--title \S+$", "大纲添加预览（干运行）"),
+    # 安全的大纲添加（MCP 临时文件）
+    (r"^outline add \S+ --title .+$", "添加大纲（MCP）"),
+    (r"^outline add \S+$", "添加大纲（无标题）"),
 ]
 
 
@@ -87,6 +94,12 @@ def is_allowed_command(cmd_str: str) -> bool:
         if re.fullmatch(pattern, cmd_str):
             return True
     return False
+
+
+def is_allowed_args(args: list) -> bool:
+    """检查参数列表是否在白名单内（转为命令字符串后匹配）。"""
+    cmd_str = " ".join(str(a) for a in args).strip()
+    return is_allowed_command(cmd_str)
 
 
 def is_path_safe(file_path: str) -> bool:

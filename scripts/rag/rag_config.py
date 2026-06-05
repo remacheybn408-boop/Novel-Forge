@@ -112,5 +112,19 @@ def get_rag_mode(config: dict) -> str:
 
 
 def get_db_path(config: dict) -> str:
-    """从配置中提取数据库路径。"""
+    """从配置中提取数据库路径，优先使用活跃 slot 的 novel.db。"""
+    # Try to resolve from active slot first
+    try:
+        import json as _j
+        ws = Path("workspace")
+        reg_file = ws / "registry.json"
+        if reg_file.exists():
+            reg = _j.loads(reg_file.read_text(encoding="utf-8"))
+            active = reg.get("active_slot", "")
+            if active:
+                slot_db = ws / active / "novel.db"
+                if slot_db.exists():
+                    return str(slot_db)
+    except Exception:
+        pass
     return config.get("db_path", DEFAULT_RAG_CONFIG["db_path"])

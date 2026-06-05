@@ -49,6 +49,7 @@ GUARD_LEVELS = {
     "reader_pull_guard": 2,
     "voice_pack_guard": 2,
     "meme_pack_guard": 2,
+    "mental_state_guard": 2,
 }
 
 LEVEL2_CANNOT_FAIL = {k for k, v in GUARD_LEVELS.items() if v == 2}
@@ -66,6 +67,7 @@ MODE_GUARDS = {
         "concrete_anchor_guard", "scene_causality_guard",
         "dialogue_naturalness_guard",
         "reader_pull_guard", "voice_pack_guard", "meme_pack_guard",
+        "mental_state_guard",
     ],
     "submission": [
         "continuity_evidence_guard", "canon_evidence_guard",
@@ -78,6 +80,7 @@ MODE_GUARDS = {
         "scene_causality_guard", "dialogue_naturalness_guard",
         "style_variation_guard", "compliance_selfcheck_guard",
         "reader_pull_guard", "voice_pack_guard", "meme_pack_guard",
+        "mental_state_guard",
     ],
 }
 
@@ -104,6 +107,7 @@ GUARD_RUNNERS = {
     "reader_pull_guard": ("src.guards.reader_pull_guard", "run_reader_pull_check"),
     "voice_pack_guard": ("src.guards.voice_pack_guard", "run_voice_pack_check"),
     "meme_pack_guard": ("src.guards.meme_pack_guard", "run_meme_pack_check"),
+    "mental_state_guard": ("src.guards.human_texture.mental_state_guard", "run_mental_state_check"),
 }
 
 
@@ -212,7 +216,11 @@ def run_single_guard(guard_name: str, content: str, chapter_no: int,
         if guard_name in sig_aware_guards:
             raw = fn(content, chapter_type)
         elif guard_name in chapter_first_guards:
-            raw = fn(chapter_no, content)
+            # v0.7.1: forward prev_tail/prev_brief so continuity check has data
+            try:
+                raw = fn(chapter_no, content, prev_tail=prev_tail, prev_brief=prev_brief)
+            except TypeError:
+                raw = fn(chapter_no, content)
         elif guard_name == "character_voice_guard" and extra_context:
             # v0.4.5: pass voice_context to character_voice_guard
             vc = extra_context.get("voice_context", {})

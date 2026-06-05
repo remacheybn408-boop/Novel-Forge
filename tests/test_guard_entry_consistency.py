@@ -25,4 +25,4 @@ def test_guard_registry_validation_passes():
     from scripts.guard_registry import validate_guard_registry
     result = validate_guard_registry()
     assert result["ok"], f"Registry validation failed: {result['errors']}"
-    assert result["registered_count"] == 21  # 18 core + 3 v0.5.5 new guards
+    assert result["registered_count"] == 22  # 18 core + 3 v0.5.5 + 1 v0.7.1 mental_state

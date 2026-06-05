@@ -3,12 +3,13 @@
 所有返回内容均为中文，不暴露终端命令、路径、源码。
 """
 
+import re
 import time
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 from .audit import log_call
-from .command_runner import run_command
+from .command_runner import run_command, run_command_args
 from .menu_provider import render_main_menu, render_status_text, render_chapter_list
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -163,41 +164,24 @@ def novel_outline_add(outline_text: str, title: str = "",
         imports_dir = PROJECT_ROOT / "outlines" / "imports"
         imports_dir.mkdir(parents=True, exist_ok=True)
 
-        safe_title = title.strip() if title.strip() else "新大纲"
+        safe_title = (title.strip() or "新大纲")[:50]  # 标题长度限制
+        # 标题只允许中文、字母、数字、空格、下划线、连字符
+        safe_title = re.sub(r'[^\u4e00-\u9fff\w\s\-]', '', safe_title) or "新大纲"
         tmp_file = imports_dir / f"mcp_import_{int(time.time())}.txt"
         tmp_file.write_text(outline_text.strip(), encoding="utf-8")
 
-        # 调用 outline add
-        cmd = f"outline add {tmp_file} --title {safe_title}"
-        if title:
-            cmd += f" --title \"{title}\""
+        # 走统一命令执行通道（经过 safety 白名单）
+        args: List[str] = ["outline", "add", str(tmp_file), "--title", safe_title, "--replace-current"]
+        success, output, code = run_command_args(args)
 
-        # outline add 不在白名单中，需要使用临时文件方式
-        # 改用 outline append 命令或直接子进程
-        from .command_runner import run_command as _run
-        # 对于大纲添加，我们走完整命令调用
-        import subprocess, sys
-        try:
-            r = subprocess.run(
-                [sys.executable, str(PROJECT_ROOT / "novel.py"),
-                 "outline", "add", str(tmp_file),
-                 "--title", safe_title],
-                cwd=str(PROJECT_ROOT),
-                capture_output=True, text=True, timeout=30,
-            )
-            output = (r.stdout + r.stderr).strip()
-            if r.returncode == 0:
-                log_call(tool_name, params, True, exit_code=0,
-                         duration_ms=(time.time() - start) * 1000)
-                return f"✅ 大纲已成功添加。\n\n{output}"
-            else:
-                log_call(tool_name, params, True, exit_code=r.returncode,
-                         duration_ms=(time.time() - start) * 1000)
-                return f"大纲添加结果：\n\n{output}"
-        except Exception as e:
-            log_call(tool_name, params, False, error=str(e),
+        if success:
+            log_call(tool_name, params, True, exit_code=code,
                      duration_ms=(time.time() - start) * 1000)
-            return f"添加大纲时出错：{str(e)[:200]}"
+            return f"✅ 大纲已成功添加。\n\n{output}"
+        else:
+            log_call(tool_name, params, True, exit_code=code,
+                     duration_ms=(time.time() - start) * 1000)
+            return f"大纲添加结果：\n\n{output}"
 
     except Exception as e:
         log_call(tool_name, params, False, error=str(e),
@@ -360,11 +344,11 @@ def novel_export_txt(slug: str = "", format: str = "txt") -> str:
         return "仅支持 txt 和 md 两种导出格式。"
 
     try:
-        cmd = f"export --format {format}"
+        args: List[str] = ["export", "--format", format]
         if slug:
-            cmd += f" --slug {slug}"
+            args.extend(["--slug", slug])
 
-        success, output, code = run_command(cmd)
+        success, output, code = run_command_args(args)
         log_call(tool_name, params, success, exit_code=code,
                  duration_ms=(time.time() - start) * 1000)
 

@@ -6,7 +6,7 @@
 """
 import sys, json
 from pathlib import Path
-from src.cli.shared import PROJECT_ROOT
+from src.cli.shared import PROJECT_ROOT, find_chapter_file
 from src.guards.human_texture import run_human_texture_guards
 from src.guards.human_texture.plot_pacing_controller import PROGRESS_DELTAS
 
@@ -87,6 +87,13 @@ def _resolve_chapter(chapter_no: str) -> str | None:
                 cs = sorted(d.glob(f"第{chapter_no}章*.txt"))
                 if cs:
                     return str(cs[0])
+        # v0.8.0: check volume subdirectories under chapters/
+        ch_base = slot_dir / "chapters"
+        if ch_base.exists():
+            for vd in sorted(ch_base.glob("第*卷")):
+                ch_fp = find_chapter_file(chapter_no, vd)
+                if ch_fp:
+                    return str(ch_fp)
 
         # novels_root
         from src.cli.shared import _load_project_config
@@ -98,11 +105,12 @@ def _resolve_chapter(chapter_no: str) -> str | None:
             pj = _j.loads(proj.read_text(encoding="utf-8"))
             slug = pj.get("title") or pj.get("name", "")
         if slug:
-            d = novels_root / slug / "第01卷"
+            from src.cli.shared import _resolve_chapter_path as _rcp
+            d = Path(_rcp(slug))
             if d.exists():
-                cs = sorted(d.glob(f"第{chapter_no}章*.txt"))
-                if cs:
-                    return str(cs[0])
+                ch_fp = find_chapter_file(chapter_no, d)
+                if ch_fp:
+                    return str(ch_fp)
     except Exception:
         pass
     return None

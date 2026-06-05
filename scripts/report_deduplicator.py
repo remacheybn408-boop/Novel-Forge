@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-report_deduplicator.py — 门禁报告去重与合并 v0.4.0
+report_deduplicator.py — 门禁报告去重与合并
 
 把多个门禁报的同类问题合并成一条修改任务。
 例如: anti_ai + show_dont_tell + concrete_anchor + qgp
@@ -14,6 +14,7 @@ import json, sys, statistics, argparse
 from pathlib import Path
 from collections import defaultdict
 from typing import List, Dict
+from version import get_version
 
 
 # ═══════════════════════════════════════════════════
@@ -185,7 +186,7 @@ def main():
     tasks = get_top_revision_tasks(merged, args.max_tasks)
 
     output = {
-        "version": "v0.4.0",
+        "version": get_version(),
         "original_warnings": len(warnings_list),
         "filtered_low_confidence": len(warnings_list) - len(
             [w for w in warnings_list if w.get("confidence", 0.5) >= args.min_confidence]),

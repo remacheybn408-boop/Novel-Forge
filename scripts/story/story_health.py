@@ -40,7 +40,13 @@ def check_health(project_root: Path) -> dict:
         return {
             "status": "FAIL",
             "story_dir": str(story),
+            "contract_count": 0,
+            "commit_count": 0,
+            "event_count": 0,
+            "warnings": [],
+            "failures": ["Story directory not initialized. Run: python novel.py story init"],
             "issues": ["Story directory not initialized. Run: python novel.py story init"],
+            "empty_hints": ["故事目录未初始化"],
         }
 
     # Check master setting
@@ -70,17 +76,16 @@ def check_health(project_root: Path) -> dict:
             ch_num = cf.stem.split("_")[1]
             matching_contract = chapters_dir / f"chapter_{ch_num}_contract.json"
             if not matching_contract.exists():
-                failures.append(
+                warnings.append(
                     f"commit {cf.stem} exists but no matching contract"
                 )
-        # Check for gaps
+        # Check for gaps: only flag chapters that have commits but no contracts
         contract_nums = [int(f.stem.split("_")[1]) for f in contracts]
         commit_nums = [int(f.stem.split("_")[1]) for f in commits]
         if contract_nums:
-            expected = set(range(1, max(contract_nums) + 1))
-            missing = expected - set(contract_nums)
-            if missing:
-                warnings.append(f"Missing contracts for chapters: {sorted(missing)}")
+            missing_with_commits = set(commit_nums) - set(contract_nums)
+            if missing_with_commits:
+                warnings.append(f"Missing contracts for chapters (but have commits): {sorted(missing_with_commits)}")
 
         # v0.6.5-clean4: Check contract field quality
         for cf in contracts:
@@ -94,7 +99,7 @@ def check_health(project_root: Path) -> dict:
                     empty_fields.append("场景目标")
                 if not contract.get("active_characters"):
                     empty_fields.append("活跃角色")
-                if not contract.get("open_promises_to_keep"):
+                if contract.get("open_promises_to_keep") is None:
                     empty_fields.append("开放伏笔")
                 if not contract.get("forbidden_changes"):
                     empty_fields.append("禁止变更")
@@ -145,6 +150,44 @@ def check_health(project_root: Path) -> dict:
                 f"Open promises: {len(open_promises)} — "
                 f"chapters: {set(p['chapter'] for p in open_promises)}"
             )
+
+    # ── DB reader_promises staleness check ──
+    try:
+        ws_dir = project_root / "workspace"
+        reg_file = ws_dir / "registry.json"
+        if reg_file.exists():
+            reg = json.loads(reg_file.read_text(encoding="utf-8"))
+            active = reg.get("active_slot", "")
+            if active:
+                db_path = ws_dir / active / "novel.db"
+                if db_path.exists():
+                    import sqlite3
+                    conn = sqlite3.connect(str(db_path))
+                    conn.row_factory = sqlite3.Row
+                    cur = conn.cursor()
+                    # Find max chapter from commits
+                    if commits_dir.exists():
+                        commit_files = sorted(commits_dir.glob("chapter_*_commit.json"))
+                        if commit_files:
+                            max_ch = max(int(f.stem.split("_")[1]) for f in commit_files)
+                            stale_threshold = max_ch - 20
+                            if stale_threshold >= 1:
+                                cur.execute(
+                                    "SELECT promise_title, introduced_chapter "
+                                    "FROM reader_promises "
+                                    "WHERE status='open' AND introduced_chapter <= ?",
+                                    (stale_threshold,)
+                                )
+                                stale_rows = cur.fetchall()
+                                if stale_rows:
+                                    for s in stale_rows:
+                                        gap = max_ch - (s["introduced_chapter"] or 0)
+                                        warnings.append(
+                                            f"读者承诺「{s['promise_title']}」已搁置 {gap} 章未兑现"
+                                        )
+                    conn.close()
+    except Exception:
+        pass
 
     # Check event ledger
     ledger = story / "events" / "event_ledger.jsonl"

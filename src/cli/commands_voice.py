@@ -13,7 +13,7 @@ import sys
 import json
 import re
 from pathlib import Path
-from src.cli.shared import PROJECT_ROOT, SCRIPTS_DIR
+from src.cli.shared import PROJECT_ROOT, SCRIPTS_DIR, find_chapter_file
 from src.guards.human_texture.voice_diversity_guard import (
     list_voice_cards, get_voice_card, save_voice_card,
     delete_voice_card, run_voice_diversity_check,
@@ -35,11 +35,11 @@ def _resolve_chapter_path(chapter_no: str) -> str | None:
         # Try chapters dir
         ch_dir = slot_dir / "chapters"
         if ch_dir.exists():
-            candidates = sorted(ch_dir.glob(f"第{chapter_no}章*.txt"))
-            if candidates:
-                return str(candidates[0])
+            ch_fp = find_chapter_file(chapter_no, ch_dir)
+            if ch_fp:
+                return str(ch_fp)
         # Try novels_root
-        from src.cli.shared import _load_project_config
+        from src.cli.shared import _load_project_config, _resolve_chapter_path as _rcp
         cfg = _load_project_config()
         novels_root = Path(cfg.get("novels_root", "./novels"))
         slug = ""
@@ -48,10 +48,10 @@ def _resolve_chapter_path(chapter_no: str) -> str | None:
             pj = json.loads(proj_file.read_text(encoding="utf-8"))
             slug = pj.get("title") or pj.get("name", "")
         if slug:
-            ch_dir = novels_root / slug / "第01卷"
-            candidates = sorted(ch_dir.glob(f"第{chapter_no}章*.txt"))
-            if candidates:
-                return str(candidates[0])
+            ch_dir = Path(_rcp(slug))
+            ch_fp = find_chapter_file(chapter_no, ch_dir)
+            if ch_fp:
+                return str(ch_fp)
     except Exception:
         pass
     return None
@@ -116,6 +116,36 @@ def _extract_chinese_names(text: str) -> set:
 
     # 方法2：姓氏启发式 — 仅提取 2 字名（3 字名依赖「角色:」字段和 DB）
     _punct_chars = set("，。！？、；：''（）《》…— \t,./!?;:()[]{}")
+    _COMMON_COMPOUNDS = {
+        "严禁", "严肃", "严重", "严格",
+        "过程", "工程", "程度", "程序", "章程", "课程",
+        "关于", "等于", "至于", "由于", "位于", "对于", "属于", "终于",
+        "马上", "马路",
+        "王国", "帝王", "霸王",
+        "龙王", "巨龙", "恐龙", "神龙",
+        "森林", "树林", "丛林", "园林", "密林",
+        "资金", "金属", "现金", "黄金",
+        "石头", "宝石", "钻石", "化石", "岩石",
+        "方法", "方式", "方案", "方向", "方面",
+        "高度", "高级", "高大", "高尚",
+        "周围", "周期", "周年",
+        "黄色", "黄昏",
+        "江湖", "江山",
+        "明白", "黑白", "洁白",
+        "历史", "史书",
+        "毛病", "毛发",
+        "万物", "万事", "万一",
+        "武器", "武功", "武术",
+        "雷霆", "雷电",
+        "段落", "手段", "阶段",
+        "任何", "如何",
+        "感谢", "谢谢",
+        "苏醒", "复苏",
+        "沉思", "沉重",
+        "范围", "范例",
+        "清楚", "清晰", "清醒", "清理",
+        "叶子", "树叶",
+    }
     for i, ch in enumerate(text):
         if ch in surnames and i + 1 < len(text):
             nxt = text[i + 1]
@@ -126,7 +156,7 @@ def _extract_chinese_names(text: str) -> set:
                                 "和", "与", "在", "把", "被", "将", "对", "为",
                                 "都", "也", "还", "就", "已", "能", "会", "可",
                                 "来", "去", "出", "进", "到", "从", "以"}
-                if candidate2[1] not in _bad_endings:
+                if candidate2[1] not in _bad_endings and candidate2 not in _COMMON_COMPOUNDS:
                     heuristic_names.add(candidate2)
 
     # 合并：可靠名优先
@@ -140,6 +170,8 @@ def _extract_chinese_names(text: str) -> set:
                  "没有", "已经", "可以", "需要", "知道", "看见", "告诉", "开始",
                  "继续", "回到", "来到", "走出", "进入", "拿起", "放下"}
         if hn in _stop:
+            continue
+        if text.count(hn) < 2:
             continue
         result.add(hn)
 
@@ -272,6 +304,12 @@ def _cmd_voice_outline_check(create_missing: bool = False):
 
 def cmd_voice(args):
     """Dispatch voice subcommands."""
+    # v0.7.1-g: deprecation warning
+    print("  ⚠️ voice 命令即将在后续版本移除，请改用 character 命令")
+    print("  · python novel.py character list")
+    print("  · python novel.py character show <角色名>")
+    print("  · python novel.py character create <角色名>")
+    print()
     action = getattr(args, "voice_action", None)
 
     if action == "list":

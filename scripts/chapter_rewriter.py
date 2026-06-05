@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-chapter_rewriter.py — 章节改稿器 v0.4.0
+chapter_rewriter.py — 章节改稿器
 
 根据 patch_plan.json 对指定段落生成 revised draft。
 不改原文——输出到 .revised.txt，并生成 rewrite_log.json。
@@ -22,6 +22,7 @@ chapter_rewriter.py — 章节改稿器 v0.4.0
 import re, json, sys, argparse
 from pathlib import Path
 from typing import List
+from version import get_version
 
 
 def split_paragraphs(text: str) -> list[str]:
@@ -146,7 +147,7 @@ def generate_rewrite_log(source_path: str, output_path: str,
     unchanged_ratio = 1.0 - len(changed_count) / max(total_paras, 1)
 
     return {
-        "version": "v0.4.0",
+        "version": get_version(),
         "source": source_path,
         "output": output_path,
         "changed_ranges": changed_ranges,

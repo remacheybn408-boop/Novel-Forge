@@ -1,9 +1,9 @@
-"""src/cli/commands_demo.py — Demo pipeline command v0.6.7"""
+"""src/cli/commands_demo.py — Demo pipeline command v0.7.0"""
 
 from src.cli.shared import (PROJECT_ROOT, SCRIPTS_DIR, _load_project_config,
     _cfg_path, _get_default_slug, _get_novels_root, _resolve_post_context,
-    _story_exists, _story_missing_msg, _get_workspace_dir, _get_active_db_path,
-    _get_outline_manager, _check_outline_gate, _get_story_dir)
+    _resolve_chapter_path, _story_exists, _story_missing_msg, _get_workspace_dir,
+    _get_active_db_path, _get_outline_manager, _check_outline_gate, _get_story_dir)
 import sys
 import json
 from pathlib import Path
@@ -59,7 +59,7 @@ def cmd_demo():
     slug = cfg_data.get("default_novel_slug", "demo_novel")
     title = cfg_data.get("default_novel_title", "Demo Novel")
     novels_root = resolve_path(PROJECT_ROOT, cfg_data.get("novels_root", "./novels"))
-    vol_dir = novels_root / slug / "第01卷"
+    vol_dir = Path(_resolve_chapter_path(slug))
     vol_dir.mkdir(parents=True, exist_ok=True)
 
     # v0.6.7-clean8: Ensure slot_001 is active for demo
@@ -90,7 +90,9 @@ def cmd_demo():
     slot_ch_file.write_text(demo_content, encoding="utf-8")
     print(f"  [OK] slot_001/chapters/{slot_ch_file.name}")
 
-    outline_file = novels_root / slug / "outline.txt"
+    outline_dir = novels_root / slug
+    outline_dir.mkdir(parents=True, exist_ok=True)
+    outline_file = outline_dir / "outline.txt"
     outline_file.write_text(
         "# Demo Novel 大纲\n\n第一卷：初入宗门。第1章：外门晨练，玉佩异动，大长老临时复测根骨。\n",
         encoding="utf-8",
@@ -142,6 +144,22 @@ def cmd_demo():
                 print("  [WARN] outline may not be active — pre may fail")
         except Exception:
             print("  [WARN] could not verify outline activation")
+
+    # v0.7.1: Sync demo chapter to the active slot (outline add may have switched slots)
+    try:
+        from scripts.db.registry import Registry
+        reg = Registry(PROJECT_ROOT)
+        active_slot = reg.get_active_slot()
+        if active_slot and active_slot != "slot_001":
+            target_dir = PROJECT_ROOT / "workspace" / active_slot / "chapters"
+            target_dir.mkdir(parents=True, exist_ok=True)
+            src = PROJECT_ROOT / "workspace" / "slot_001" / "chapters" / "第1章_开篇.txt"
+            if src.exists():
+                dst = target_dir / "第1章_开篇.txt"
+                dst.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
+                print(f"  [OK] 已同步章节到 {active_slot}/chapters/")
+    except Exception as e:
+        print(f"  [WARN] 章节同步失败: {e}")
 
     # STEP 6: Pre-write gate
     print("\n[STEP 6] Running pre-write gate...", flush=True)

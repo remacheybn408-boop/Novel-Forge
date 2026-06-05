@@ -2,6 +2,7 @@
 """Test revision_task_generator — 修改任务生成器测试"""
 import sys, json
 from pathlib import Path
+from version import get_version
 from scripts.revision_task_generator import generate_tasks
 
 
@@ -16,7 +17,7 @@ def test_generates_tasks_from_report():
     chapter = "测试章节内容。\n\n" * 10
     tasks = generate_tasks(chapter, report)
     assert tasks["task_count"] >= 1
-    assert tasks["version"] == "v0.4.0"
+    assert tasks["version"] == get_version()
 
 
 def test_low_confidence_filtered():

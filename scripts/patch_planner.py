@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-patch_planner.py — 改稿补丁规划器 v0.4.0
+patch_planner.py — 改稿补丁规划器
 
 根据 revision_tasks.json 决定改哪里、锁定哪里。
 默认锁定章节开头、结尾、伏笔段。改动比例 ≤ 35%。
@@ -12,6 +12,7 @@ patch_planner.py — 改稿补丁规划器 v0.4.0
 import re, json, sys, argparse
 from pathlib import Path
 from typing import List
+from version import get_version
 
 
 def split_paragraphs(text: str) -> list[str]:
@@ -119,7 +120,7 @@ def build_patch_plan(chapter_text: str, tasks: dict,
             f"建议减少任务或人工确认。")
 
     return {
-        "version": "v0.4.0",
+        "version": get_version(),
         "source_file": "",
         "total_paragraphs": n,
         "patch_plan": patch_ops,
