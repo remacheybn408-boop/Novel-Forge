@@ -285,4 +285,6 @@ See [CONTRIBUTORS.md](CONTRIBUTORS.md) for full list.
 
 ## License
 
-本项目采用双许可：**MIT OR GPL-3.0**（用户可任选其一）。详情见 [LICENSE](LICENSE)。
+**开源版**：AGPL-3.0 — 修改后以 SaaS / API 对外提供服务者，须按 AGPL-3.0 公开修改源码。详见 [LICENSE](LICENSE)。
+
+**商业版**：如需闭源使用（含商业产品集成、SaaS 服务、企业内部部署），见 [COMMERCIAL-LICENSE.md](COMMERCIAL-LICENSE.md) 或联系 [你的邮箱 / 微信]。
