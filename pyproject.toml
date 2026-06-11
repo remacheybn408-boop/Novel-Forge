@@ -6,6 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "novel-forge"
 version = "0.7.1"
 description = "AI-powered long-form novel engineering pipeline"
+license = {text = "AGPL-3.0"}
 requires-python = ">=3.10"
 dependencies = [
     "pyyaml>=6.0",
