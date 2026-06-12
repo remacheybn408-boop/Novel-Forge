@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=64.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "novel-forge"
+version = "0.7.5"
+description = "AI-powered long-form novel engineering pipeline"
+requires-python = ">=3.10"
+dependencies = [
+    "pyyaml>=6.0",
+    "mcp>=1.0.0",
+]
+
+[project.scripts]
+novel-mcp = "mcp_server.server:main"
+
+[project.optional-dependencies]
+rag = [
+    "chromadb>=0.4.0",
+    "sentence-transformers>=2.2.0",
+]
+
+[project.urls]
+Repository = "https://github.com/bijinfeng/novel-pipeline-write-engine"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
