@@ -1,4 +1,0 @@
-# Novel Forge — 小说引擎
-#
-pyyaml>=6.0
-mcp>=1.0.0
